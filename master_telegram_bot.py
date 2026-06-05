@@ -41,12 +41,12 @@ def send_photo_to_telegram(image_path, caption=""):
     return result
 
 def send_poll_to_telegram(correct_option_text):
-    print(f"📊 Telegram par Poll bhej rahe hain... (AI ne diya: {correct_option_text})")
+    print(f"📊 Telegram par Poll bhej rahe hain... (AI Option: {correct_option_text})")
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPoll"
     
-    # 💡 स्मार्ट फ़िल्टर: AI के जवाब में से सिर्फ a, b, c, d या 1, 2, 3, 4 निकालेगा
-    match = re.search(r'[a-d1-4]', correct_option_text.lower())
-    clean_opt = match.group(0) if match else "a" # अगर कुछ समझ ना आए तो डिफ़ॉल्ट A
+    # 💡 स्मार्ट फ़िल्टर: कुछ भी कचरा हो, यह सिर्फ सही ऑप्शन निकालेगा
+    opt_char = re.sub(r'[^a-dA-D1-4]', '', correct_option_text)
+    clean_opt = opt_char[-1].lower() if opt_char else 'a'
     
     option_map = {"a": 0, "b": 1, "c": 2, "d": 3, "1": 0, "2": 1, "3": 2, "4": 3}
     correct_id = option_map.get(clean_opt, 0)
@@ -57,7 +57,7 @@ def send_poll_to_telegram(correct_option_text):
         "options": json.dumps(["Option A (या 1)", "Option B (या 2)", "Option C (या 3)", "Option D (या 4)"]),
         "type": "quiz",
         "correct_option_id": correct_id,
-        "is_anonymous": False
+        "is_anonymous": True  # 💡 Telegram Channel के लिए इसे True करना ज़रूरी है!
     }
     
     res = requests.post(url, data=payload)
@@ -109,7 +109,6 @@ def generate_solution_image(smart_approach, output_filename="solution_hd.png"):
         browser = p.chromium.launch(headless=True, args=['--no-sandbox', '--disable-dev-shm-usage'])
         page = browser.new_page(viewport={'width': 1000, 'height': 600}, device_scale_factor=2)
         page.set_content(html_content)
-        # 💡 टाइमर को थोड़ा बढ़ा दिया है ताकि Maths आराम से रेंडर हो सके
         page.wait_for_timeout(4000) 
         element = page.locator("#content-to-capture")
         element.screenshot(path=output_filename)
@@ -124,7 +123,6 @@ def main():
         print("🎉 Badhai ho! Saare sawal pure ho chuke hain. Folder khali hai.")
         return
 
-    # 💡 Daily Limit: सिर्फ 100 सवाल प्रोसेस होंगे
     daily_limit = 100
     files_to_process = files[:daily_limit]
     
@@ -137,14 +135,14 @@ def main():
 
         send_photo_to_telegram(question_path, caption=f"🎯 Question ID: {current_question_file.split('.')[0]}")
 
+        # 💡 PROMPT UPDATE: AI को \frac जैसी चीज़ों के लिए सख्त नियम दिए गए हैं
         prompt = """
         tum ek expert RPSC 2nd Grade Mathematics teacher ho.
         is photo mein diye gaye maths ke MCQ ko solve karo. 
         
         RULE 1: koi lamba step-by-step hal bilkul nahi dena hai. puri calculation mat dikhana.
-        RULE 2: 'smart_approach' mein kewal short trick, direct formula ya option elimination (by options) ka tarika batao jisse exam mein 5-10 second mein uttar nikala ja sake. 
-        RULE 3: (udaharan: agar singular solution ka sawal ho, toh sirf itna batao ki "p ke respect mein derivative karke p ko main equation aur derivative equation ki help se vilop (eliminate) karte hain", faltu steps mat likho).
-        RULE 4: maths ke sabhi variables aur formulas ko hamesha $$...$$ ya $...$ (LaTeX) ke andar hi likhna.
+        RULE 2: 'smart_approach' mein kewal short trick, direct formula ya option elimination ka tarika batao jisse exam mein 5-10 second mein uttar nikala ja sake. 
+        RULE 3: maths ki har ek choti-badi equation, fraction (jaise \\frac), variables (x, y) ko LAZMI TAUR PAR $$...$$ ya $...$ (LaTeX) ke andar hi likhna. bina $ lagaye koi bhi math term mat likhna, warna error aayegi.
 
         STRICT INSTRUCTION: apna jawab sirf aur sirf niche diye gaye XML format mein hi dena:
         
@@ -182,10 +180,8 @@ def main():
             correct_opt = re.search(r'<correct_option>(.*?)</correct_option>', text, re.DOTALL | re.IGNORECASE).group(1).strip()
             smart_app = re.search(r'<smart_approach>(.*?)</smart_approach>', text, re.DOTALL | re.IGNORECASE).group(1).strip()
             
-            # 💡 सबसे पहले पोल भेजेंगे
             send_poll_to_telegram(correct_opt)
             
-            # 💡 उसके बाद सॉल्यूशन इमेज भेजेंगे
             sol_image_path = generate_solution_image(smart_app)
             if os.path.exists(sol_image_path):
                 send_photo_to_telegram(sol_image_path, caption="💡 Smart Solution by Master Bot")
