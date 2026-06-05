@@ -25,10 +25,23 @@ client = genai.Client(api_key=GEMINI_API_KEY)
 def send_photo_to_telegram(image_path, caption=""):
     print("📤 Telegram पर फोटो भेज रहे हैं...")
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
+    
     with open(image_path, 'rb') as photo:
         payload = {"chat_id": TELEGRAM_CHAT_ID, "caption": caption}
         response = requests.post(url, data=payload, files={"photo": photo})
-    return response.json()
+        result = response.json()
+        
+        # 💡 स्मार्ट फॉलबैक: अगर Telegram फोटो रिजेक्ट कर दे, तो फाइल (Document) बनाकर भेजें
+        if not result.get("ok"):
+            error_msg = result.get('description', 'Unknown Error')
+            print(f"⚠️ Telegram ने Photo रिजेक्ट कर दी ({error_msg})। अब Document की तरह भेज रहे हैं...")
+            
+            doc_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendDocument"
+            photo.seek(0) # फाइल को वापस शुरू से पढने के लिए
+            doc_response = requests.post(doc_url, data=payload, files={"document": photo})
+            return doc_response.json()
+            
+    return result
 
 def send_poll_to_telegram(correct_option_letter):
     print("📊 Telegram पर Poll भेज रहे हैं...")
@@ -49,10 +62,8 @@ def send_poll_to_telegram(correct_option_letter):
     requests.post(url, data=payload)
 
 def generate_solution_image(smart_approach, detailed_solution, output_filename="solution_hd.png"):
-    print("🎨 Playwright से Ultra HD Solution Image बना रहे हैं...")
+    print("🎨 Playwright से HD Solution Image बना रहे हैं...")
     
-    # 💡 ध्यान दें: हमने यहाँ से .replace('\n', '<br>') हटा दिया है ताकि Maths के फॉर्मूले ना टूटें।
-
     html_content = f"""
     <!DOCTYPE html>
     <html>
@@ -64,11 +75,9 @@ def generate_solution_image(smart_approach, detailed_solution, output_filename="
             body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f9; padding: 40px; color: #333; margin: 0; }}
             #content-to-capture {{ width: 850px; background-color: #fff; padding: 40px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-left: 10px solid #ff7e5f; margin: 0 auto; }}
             .header {{ font-size: 28px; font-weight: bold; color: #ff7e5f; margin-bottom: 25px; border-bottom: 2px solid #eee; padding-bottom: 10px; }}
-            /* 💡 white-space: pre-wrap से लाइनें अपने आप सही सेट होंगी और फॉर्मूले नहीं टूटेंगे */
             .smart-approach {{ background-color: #e8f5e9; padding: 25px; border-radius: 12px; margin-bottom: 25px; border-left: 6px solid #4caf50; font-size: 22px; white-space: pre-wrap; }}
             .detailed-solution {{ font-size: 22px; line-height: 1.8; padding: 10px; white-space: pre-wrap; }}
             .watermark {{ text-align: center; margin-top: 35px; font-size: 24px; font-weight: bold; color: #ff7e5f; opacity: 0.8; }}
-            /* MathJax को बॉक्स से बाहर जाने से रोकना */
             mjx-container {{ max-width: 100%; overflow-x: auto; overflow-y: hidden; }}
         </style>
     </head>
@@ -89,10 +98,9 @@ def generate_solution_image(smart_approach, detailed_solution, output_filename="
     
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True, args=['--no-sandbox', '--disable-dev-shm-usage'])
-        # 💡 असली जादू: device_scale_factor=3 (यह फोटो को 3 गुना ज़ूम करके Ultra HD बना देगा)
-        page = browser.new_page(viewport={'width': 1000, 'height': 800}, device_scale_factor=3)
+        # 💡 scale 2x किया है ताकि लिमिट क्रॉस ना हो
+        page = browser.new_page(viewport={'width': 1000, 'height': 800}, device_scale_factor=2)
         page.set_content(html_content)
-        # MathJax (Maths के फॉर्मूले) को अच्छे से रेंडर होने के लिए 4 सेकंड का टाइम दिया है
         page.wait_for_timeout(4000) 
         element = page.locator("#content-to-capture")
         element.screenshot(path=output_filename)
