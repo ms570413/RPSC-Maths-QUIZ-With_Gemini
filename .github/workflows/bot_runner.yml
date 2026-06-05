@@ -1,0 +1,41 @@
+name: RPSC Math Bot Daily Runner
+
+on:
+  schedule:
+    - cron: '30 2 * * *' # रोज़ सुबह 8:00 बजे चलेगा
+  workflow_dispatch: # मैन्युअल रन करने का बटन
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Google Chrome
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+
+      - name: Run Master AI Bot
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python master_telegram_bot.py
+
+      - name: Save Changes to GitHub
+        run: |
+          git config --global user.name "MasterBot"
+          git config --global user.email "bot@rpsc.com"
+          git add .
+          git commit -m "✅ Moved posted question to Done folder" || echo "No changes to commit"
+          git push
