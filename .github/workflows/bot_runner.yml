@@ -2,7 +2,8 @@ name: RPSC Math Bot Daily Runner
 
 on:
   schedule:
-    - cron: '30 22 * * *' # रोज़ सुबह 4:00 बजे
+    # 💡 IST के हिसाब से रात 1:00, 3:00, सुबह 5:00 और 7:00 बजे चलेगा
+    - cron: '30 19,21,23,1 * * *'
   workflow_dispatch: 
 
 jobs:
