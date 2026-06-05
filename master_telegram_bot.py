@@ -65,7 +65,6 @@ def send_poll_to_telegram(correct_option_text):
     else:
         print("✅ Poll successfully bhej diya gaya!")
 
-# 💡 UPDATE: function ab 'question_id' bhi lega
 def generate_solution_image(question_id, smart_approach, output_filename="solution_hd.png"):
     print(f"🎨 Playwright se HD Image bana rahe hain (ID: {question_id})...")
     
@@ -88,10 +87,7 @@ def generate_solution_image(question_id, smart_approach, output_filename="soluti
             body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f9; padding: 30px; color: #333; margin: 0; }}
             #content-to-capture {{ width: 850px; background-color: #fff; padding: 40px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-left: 10px solid #ff7e5f; margin: 0 auto; position: relative; }}
             .header {{ font-size: 28px; font-weight: bold; color: #ff7e5f; margin-bottom: 20px; border-bottom: 2px solid #eee; padding-bottom: 10px; }}
-            
-            /* 💡 NAYA STYLE: Question ID Badge ke liye */
             .qid-badge {{ display: inline-block; background-color: #333; color: #fff; padding: 8px 18px; border-radius: 8px; font-size: 18px; font-weight: bold; margin-bottom: 20px; letter-spacing: 1px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }}
-            
             .smart-approach {{ background-color: #e8f5e9; padding: 25px; border-radius: 12px; margin-bottom: 10px; border-left: 6px solid #4caf50; font-size: 24px; line-height: 1.6; white-space: pre-wrap; }}
             .watermark {{ text-align: center; margin-top: 25px; font-size: 22px; font-weight: bold; color: #ff7e5f; opacity: 0.8; }}
             mjx-container {{ max-width: 100%; overflow-x: auto; overflow-y: hidden; }}
@@ -100,10 +96,7 @@ def generate_solution_image(question_id, smart_approach, output_filename="soluti
     <body>
         <div id="content-to-capture">
             <div class="header">💡 Smart Approach & Option Elimination</div>
-            
-            <!-- 💡 NAYA HTML: Question ID yahan dikhegi -->
             <div class="qid-badge">🎯 Question ID: {question_id}</div>
-            
             <div class="smart-approach">
 {smart_approach}
             </div>
@@ -131,15 +124,14 @@ def main():
         print("🎉 Badhai ho! Saare sawal pure ho chuke hain. Folder khali hai.")
         return
 
-    daily_limit = 100
-    files_to_process = files[:daily_limit]
+    # 💡 NAYA BATCH SIZE: 25 Sawal ek baar mein
+    batch_limit = 25
+    files_to_process = files[:batch_limit]
     
-    print(f"📦 Aaj ke liye total {len(files_to_process)} questions process honge...")
+    print(f"📦 Is batch ke liye total {len(files_to_process)} questions process honge...")
 
     for current_question_file in files_to_process:
         question_path = os.path.join(INPUT_FOLDER, current_question_file)
-        
-        # 💡 Question ID nikalna (File ka naam bina .jpg ke)
         question_id = current_question_file.split('.')[0]
         
         print(f"\n🚀 Processing shuru: {current_question_file}")
@@ -160,7 +152,8 @@ def main():
         <smart_approach>yahan aapki short trick ya option elimination ka tarika...</smart_approach>
         """
         
-        max_retries = 3
+        # 💡 RETRY LIMIT 5 kar di hai
+        max_retries = 5
         response = None
         
         for attempt in range(max_retries):
@@ -181,10 +174,10 @@ def main():
                         print("⏳ API Limit hit! Google ko shant hone ke liye 60 seconds ka break le rahe hain...")
                         time.sleep(60)
                     else:
-                        print("⏳ Server busy hai. 20 second baad wapas try kar raha hu...")
-                        time.sleep(20)
+                        print("⏳ Server busy hai. 30 second baad wapas try kar raha hu...")
+                        time.sleep(30)
                 else:
-                    print("❌ 3 baar try karne ke baad bhi server busy hai. Aaj ke liye rok rahe hain.")
+                    print("❌ 5 baar try karne ke baad bhi server busy hai. Is batch ko yahin rok rahe hain.")
                     return 
 
         if response is None:
@@ -197,7 +190,6 @@ def main():
             
             send_poll_to_telegram(correct_opt)
             
-            # 💡 Yahan hum generate_solution_image ko question_id bhej rahe hain
             sol_image_path = generate_solution_image(question_id, smart_app)
             if os.path.exists(sol_image_path):
                 send_photo_to_telegram(sol_image_path, caption=f"💡 Smart Solution by Master Bot | ID: {question_id}")
@@ -208,8 +200,9 @@ def main():
                 
             print(f"✅ {current_question_file} ka kaam successfully pura hua!")
             
-            print("⏳ API Free Tier ko block hone se bachane ke liye 60 second ka break le rahe hain...")
-            time.sleep(60)
+            # 💡 BULLETPROOF TIMER: Har sawal ke baad 90 second (1.5 min) ka lambaaaa break!
+            print("⏳ API ko thanda rakhne ke liye 90 second ka break le rahe hain...")
+            time.sleep(90)
 
         except Exception as e:
             print(f"❌ Output padhne ya photo banane mein error aa gayi: {e}")
