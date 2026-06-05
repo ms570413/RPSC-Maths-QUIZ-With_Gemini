@@ -9,44 +9,63 @@ from PIL import Image
 from playwright.sync_api import sync_playwright
 
 # ==========================================
-# 🛑 GitHub Secrets se Data
+# 🛑 MULTI-KEY SYSTEM: Sari keys load karna
 # ==========================================
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+API_KEYS = []
+for i in range(1, 6): 
+    k = os.environ.get(f"GEMINI_API_KEY_{i}")
+    if k:
+        API_KEYS.append(k)
+
+# Agar purani key bhi hui toh use fallback me le lenge
+if not API_KEYS:
+    k = os.environ.get("GEMINI_API_KEY")
+    if k:
+        API_KEYS.append(k)
+
+if not API_KEYS:
+    print("❌ Koi API Key nahi mili! GitHub Secrets check karein.")
+    exit()
+
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
 INPUT_FOLDER = "Final_Mixed_Bank"
 DONE_FOLDER = "Done_Questions"
-
-# Setup
 os.makedirs(DONE_FOLDER, exist_ok=True)
-client = genai.Client(api_key=GEMINI_API_KEY)
+
+# 💡 Setup Global Client
+current_key_index = 0
+client = genai.Client(api_key=API_KEYS[current_key_index])
+
+def switch_api_key():
+    global current_key_index, client
+    current_key_index += 1
+    if current_key_index < len(API_KEYS):
+        print(f"🔄 Limit khtam! Nayi Key (Key {current_key_index + 1}) par switch kar rahe hain...")
+        client = genai.Client(api_key=API_KEYS[current_key_index])
+        return True
+    return False
 
 def send_photo_to_telegram(image_path, caption=""):
     print("📤 Telegram par photo bhej rahe hain...")
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
-    
     with open(image_path, 'rb') as photo:
         payload = {"chat_id": TELEGRAM_CHAT_ID, "caption": caption}
         response = requests.post(url, data=payload, files={"photo": photo})
         result = response.json()
-        
         if not result.get("ok"):
-            print(f"⚠️ Telegram ne Photo reject kar di. Document bhej rahe hain...")
             doc_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendDocument"
             photo.seek(0) 
             doc_response = requests.post(doc_url, data=payload, files={"document": photo})
             return doc_response.json()
-            
     return result
 
 def send_poll_to_telegram(correct_option_text):
     print(f"📊 Telegram par Poll bhej rahe hain... (AI Option: {correct_option_text})")
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPoll"
-    
     opt_char = re.sub(r'[^a-dA-D1-4]', '', correct_option_text)
     clean_opt = opt_char[-1].lower() if opt_char else 'a'
-    
     option_map = {"a": 0, "b": 1, "c": 2, "d": 3, "1": 0, "2": 1, "3": 2, "4": 3}
     correct_id = option_map.get(clean_opt, 0)
 
@@ -58,16 +77,10 @@ def send_poll_to_telegram(correct_option_text):
         "correct_option_id": correct_id,
         "is_anonymous": True 
     }
-    
-    res = requests.post(url, data=payload)
-    if not res.json().get("ok"):
-        print("❌ Poll bhejne me error aayi:", res.text)
-    else:
-        print("✅ Poll successfully bhej diya gaya!")
+    requests.post(url, data=payload)
 
 def generate_solution_image(question_id, smart_approach, output_filename="solution_hd.png"):
     print(f"🎨 Playwright se HD Image bana rahe hain (ID: {question_id})...")
-    
     html_content = f"""
     <!DOCTYPE html>
     <html>
@@ -105,7 +118,6 @@ def generate_solution_image(question_id, smart_approach, output_filename="soluti
     </body>
     </html>
     """
-    
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True, args=['--no-sandbox', '--disable-dev-shm-usage'])
         page = browser.new_page(viewport={'width': 1000, 'height': 600}, device_scale_factor=2)
@@ -114,7 +126,6 @@ def generate_solution_image(question_id, smart_approach, output_filename="soluti
         element = page.locator("#content-to-capture")
         element.screenshot(path=output_filename)
         browser.close()
-        
     return output_filename
 
 def main():
@@ -124,8 +135,8 @@ def main():
         print("🎉 Badhai ho! Saare sawal pure ho chuke hain. Folder khali hai.")
         return
 
-    # 💡 NAYA BATCH SIZE: 25 Sawal ek baar mein
-    batch_limit = 25
+    # 💡 Ab ek baar me 100 questions process honge, bina lambe break ke!
+    batch_limit = 100
     files_to_process = files[:batch_limit]
     
     print(f"📦 Is batch ke liye total {len(files_to_process)} questions process honge...")
@@ -135,7 +146,6 @@ def main():
         question_id = current_question_file.split('.')[0]
         
         print(f"\n🚀 Processing shuru: {current_question_file}")
-
         send_photo_to_telegram(question_path, caption=f"🎯 Question ID: {question_id}")
 
         prompt = """
@@ -152,13 +162,12 @@ def main():
         <smart_approach>yahan aapki short trick ya option elimination ka tarika...</smart_approach>
         """
         
-        # 💡 RETRY LIMIT 5 kar di hai
         max_retries = 5
         response = None
         
         for attempt in range(max_retries):
             try:
-                print(f"🧠 Gemini dimaag laga raha hai... (Attempt {attempt + 1})")
+                print(f"🧠 Gemini dimaag laga raha hai... (Attempt {attempt + 1} with Key {current_key_index + 1})")
                 img = Image.open(question_path)
                 response = client.models.generate_content(
                     model='gemini-2.5-flash',
@@ -169,16 +178,21 @@ def main():
             except Exception as e:
                 error_msg = str(e)
                 print(f"⚠️ Attempt {attempt + 1} fail hua: {error_msg}")
-                if attempt < max_retries - 1:
-                    if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
-                        print("⏳ API Limit hit! Google ko shant hone ke liye 60 seconds ka break le rahe hain...")
-                        time.sleep(60)
+                
+                # 💡 MULTI-KEY SWITCHING LOGIC
+                if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
+                    if switch_api_key():
+                        time.sleep(2) # Key switch ki, 2 sec ruko aur aage badho
+                        continue
                     else:
-                        print("⏳ Server busy hai. 30 second baad wapas try kar raha hu...")
-                        time.sleep(30)
+                        print("⏳ Sari API keys khatam ho gayi! 60 second ka break le rahe hain...")
+                        time.sleep(60)
                 else:
-                    print("❌ 5 baar try karne ke baad bhi server busy hai. Is batch ko yahin rok rahe hain.")
-                    return 
+                    if attempt < max_retries - 1:
+                        print("⏳ Server busy hai. 10 second baad wapas try kar raha hu...")
+                        time.sleep(10)
+                    else:
+                        print("❌ 5 baar try karne ke baad bhi server busy hai. Is sawal ko skip kar rahe hain.")
 
         if response is None:
             continue
@@ -200,9 +214,8 @@ def main():
                 
             print(f"✅ {current_question_file} ka kaam successfully pura hua!")
             
-            # 💡 BULLETPROOF TIMER: Har sawal ke baad 90 second (1.5 min) ka lambaaaa break!
-            print("⏳ API ko thanda rakhne ke liye 90 second ka break le rahe hain...")
-            time.sleep(90)
+            # Ab lambe break ki zarurat nahi, bas 5 second tak bot saans lega
+            time.sleep(5)
 
         except Exception as e:
             print(f"❌ Output padhne ya photo banane mein error aa gayi: {e}")
