@@ -1,9 +1,9 @@
 import os
 import shutil
-import json
 import re
 import time
 import requests
+import json
 from google import genai
 from PIL import Image
 from html2image import Html2Image
@@ -22,15 +22,20 @@ DONE_FOLDER = "Done_Questions"
 # फोल्डर चेक करना और सेटअप
 os.makedirs(DONE_FOLDER, exist_ok=True)
 client = genai.Client(api_key=GEMINI_API_KEY)
+
+# 🔧 Server-Safe Chrome Flags (अब यह कभी क्रैश नहीं होगा)
 hti = Html2Image(custom_flags=[
-    '--headless', 
-    '--no-sandbox', 
-    '--disable-gpu', 
-    '--disable-dev-shm-usage', 
-    '--disable-software-rasterizer', 
-    '--disable-dbus', 
-    '--disable-background-networking'
+    '--headless',
+    '--no-sandbox',
+    '--disable-gpu',
+    '--disable-dev-shm-usage',
+    '--disable-software-rasterizer',
+    '--disable-dbus',
+    '--disable-background-networking',
+    '--virtual-time-budget=10000',
+    '--hide-scrollbars'
 ])
+
 def send_photo_to_telegram(image_path, caption=""):
     print("📤 Telegram पर फोटो भेज रहे हैं...")
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
@@ -43,8 +48,10 @@ def send_poll_to_telegram(correct_option_letter):
     print("📊 Telegram पर Poll भेज रहे हैं...")
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPoll"
     
+    # साफ़ करना (जैसे 'C' या '(c)' को 'c' बनाना)
+    clean_opt = correct_option_letter.replace('(', '').replace(')', '').strip().lower()
     option_map = {"a": 0, "b": 1, "c": 2, "d": 3, "1": 0, "2": 1, "3": 2, "4": 3}
-    correct_id = option_map.get(correct_option_letter.lower(), 0)
+    correct_id = option_map.get(clean_opt, 0)
 
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
@@ -59,6 +66,10 @@ def send_poll_to_telegram(correct_option_letter):
 def generate_solution_image(smart_approach, detailed_solution, output_filename="solution_hd.png"):
     print("🎨 HD Solution Image बना रहे हैं...")
     
+    # HTML में लाइन ब्रेक को सही करने के लिए \n को <br> में बदलना
+    smart_approach = smart_approach.replace('\n', '<br>')
+    detailed_solution = detailed_solution.replace('\n', '<br>')
+
     html_content = f"""
     <!DOCTYPE html>
     <html>
@@ -109,21 +120,19 @@ def main():
     # 1. Telegram पर सवाल भेजना
     send_photo_to_telegram(question_path, caption=f"🎯 Question ID: {current_question_file.split('.')[0]}")
 
-    # 2. Gemini से सॉल्व करवाना
+    # 2. Gemini से सॉल्व करवाना (बिना JSON के)
     prompt = """
     तुम एक एक्सपर्ट RPSC 2nd Grade Mathematics टीचर हो।
-    इस फोटो में दिए गए गणित के MCQ को सॉल्व करो और सिर्फ JSON फॉर्मेट में जवाब दो। 
+    इस फोटो में दिए गए गणित के MCQ को सॉल्व करो। 
     - 'smart_approach' में वह शॉर्ट ट्रिक या ऑप्शन एलिमिनेशन का तरीका बताओ जिससे एग्जाम में 5-10 सेकंड में उत्तर निकाला जा सके।
     - 'detailed_solution' में पूरा स्टेप-बाय-स्टेप गणितीय हल एकदम शुद्ध हिंदी में समझाओ।
     - गणित के सभी वेरिएबल्स और फॉर्मूलों को हमेशा $$...$$ (LaTeX) के अंदर ही लिखना।
-    - ⚠️ VERY IMPORTANT JSON RULE: LaTeX लिखते समय सभी backslash (\) को double backslash (\\\\) में बदल देना। (जैसे \frac की जगह \\\\frac और \theta की जगह \\\\theta लिखना), वरना JSON Invalid Escape Error देगा।
 
-    Strict Output Format (Only JSON):
-    {
-        "correct_option": "C",
-        "smart_approach": "यहाँ आपकी शॉर्ट ट्रिक...",
-        "detailed_solution": "यहाँ पूरा स्टेप-बाय-स्टेप हल..."
-    }
+    STRICT INSTRUCTION: अपना जवाब सिर्फ और सिर्फ नीचे दिए गए XML फॉर्मेट में ही देना (कोई JSON नहीं, कोई फालतू टेक्स्ट नहीं):
+    
+    <correct_option>C</correct_option>
+    <smart_approach>यहाँ आपकी शॉर्ट ट्रिक...</smart_approach>
+    <detailed_solution>यहाँ पूरा स्टेप-बाय-स्टेप हल...</detailed_solution>
     """
     
     try:
@@ -134,18 +143,23 @@ def main():
             contents=[prompt, img]
         )
         
-        json_match = re.search(r'\{.*\}', response.text, re.DOTALL)
-        if not json_match:
-            print("❌ AI JSON जनरेट करने में फेल रहा।")
+        text = response.text
+        
+        # Regex से डेटा निकालना (Error-Free तरीका)
+        try:
+            correct_opt = re.search(r'<correct_option>(.*?)</correct_option>', text, re.DOTALL | re.IGNORECASE).group(1).strip()
+            smart_app = re.search(r'<smart_approach>(.*?)</smart_approach>', text, re.DOTALL | re.IGNORECASE).group(1).strip()
+            detailed_sol = re.search(r'<detailed_solution>(.*?)</detailed_solution>', text, re.DOTALL | re.IGNORECASE).group(1).strip()
+        except Exception as e:
+            print("❌ AI आउटपुट को पढ़ने में फेल रहा।")
+            print("AI Response:", text)
             return
-            
-        data = json.loads(json_match.group(0))
         
         # 3. Telegram पर Poll भेजना
-        send_poll_to_telegram(data.get("correct_option", "A"))
+        send_poll_to_telegram(correct_opt)
         
         # 4. HD Solution Image बनाना और भेजना
-        sol_image_path = generate_solution_image(data.get("smart_approach"), data.get("detailed_solution"))
+        sol_image_path = generate_solution_image(smart_app, detailed_sol)
         send_photo_to_telegram(sol_image_path, caption="💡 Solution by Master Bot")
         
         # 5. सफाई करना (फाइल को Done में डालना)
