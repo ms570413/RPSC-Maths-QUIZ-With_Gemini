@@ -22,11 +22,13 @@ DONE_FOLDER = "Done_Questions"
 os.makedirs(DONE_FOLDER, exist_ok=True)
 client = genai.Client(api_key=GEMINI_API_KEY)
 
-# 🔧 Minimal & Stable Chrome Flags (GitHub Actions के लिए 100% सेफ)
+# 🔧 Xvfb Display Flags (Simple & Super Fast)
 hti = Html2Image(custom_flags=[
-    '--headless',
     '--no-sandbox',
     '--disable-dev-shm-usage',
+    '--disable-gpu',
+    '--incognito',
+    '--window-size=850,1000',
     '--hide-scrollbars'
 ])
 
