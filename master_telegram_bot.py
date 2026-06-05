@@ -49,10 +49,9 @@ def send_poll_to_telegram(correct_option_letter):
     requests.post(url, data=payload)
 
 def generate_solution_image(smart_approach, detailed_solution, output_filename="solution_hd.png"):
-    print("🎨 Playwright से HD Solution Image बना रहे हैं...")
+    print("🎨 Playwright से Ultra HD Solution Image बना रहे हैं...")
     
-    smart_approach = smart_approach.replace('\n', '<br>')
-    detailed_solution = detailed_solution.replace('\n', '<br>')
+    # 💡 ध्यान दें: हमने यहाँ से .replace('\n', '<br>') हटा दिया है ताकि Maths के फॉर्मूले ना टूटें।
 
     html_content = f"""
     <!DOCTYPE html>
@@ -62,25 +61,25 @@ def generate_solution_image(smart_approach, detailed_solution, output_filename="
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
         <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
         <style>
-            body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f9; padding: 40px; color: #333; }}
-            .main-wrapper {{ width: 800px; display: inline-block; }}
-            .container {{ background-color: #fff; padding: 30px; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-left: 8px solid #ff7e5f; }}
-            .header {{ font-size: 26px; font-weight: bold; color: #ff7e5f; margin-bottom: 20px; border-bottom: 2px solid #eee; padding-bottom: 10px; }}
-            .smart-approach {{ background-color: #e8f5e9; padding: 20px; border-radius: 10px; margin-bottom: 20px; border-left: 5px solid #4caf50; font-size: 20px; }}
-            .detailed-solution {{ font-size: 20px; line-height: 1.8; padding: 10px; }}
-            .watermark {{ text-align: center; margin-top: 25px; font-size: 22px; font-weight: bold; color: #ff7e5f; opacity: 0.9; }}
+            body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f9; padding: 40px; color: #333; margin: 0; }}
+            #content-to-capture {{ width: 850px; background-color: #fff; padding: 40px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-left: 10px solid #ff7e5f; margin: 0 auto; }}
+            .header {{ font-size: 28px; font-weight: bold; color: #ff7e5f; margin-bottom: 25px; border-bottom: 2px solid #eee; padding-bottom: 10px; }}
+            /* 💡 white-space: pre-wrap से लाइनें अपने आप सही सेट होंगी और फॉर्मूले नहीं टूटेंगे */
+            .smart-approach {{ background-color: #e8f5e9; padding: 25px; border-radius: 12px; margin-bottom: 25px; border-left: 6px solid #4caf50; font-size: 22px; white-space: pre-wrap; }}
+            .detailed-solution {{ font-size: 22px; line-height: 1.8; padding: 10px; white-space: pre-wrap; }}
+            .watermark {{ text-align: center; margin-top: 35px; font-size: 24px; font-weight: bold; color: #ff7e5f; opacity: 0.8; }}
+            /* MathJax को बॉक्स से बाहर जाने से रोकना */
+            mjx-container {{ max-width: 100%; overflow-x: auto; overflow-y: hidden; }}
         </style>
     </head>
     <body>
-        <div class="main-wrapper" id="content-to-capture">
-            <div class="container">
-                <div class="header">💡 Solution & Approach</div>
-                <div class="smart-approach">
-                    <strong>🚀 Smart Approach (Trick):</strong><br> {smart_approach}
-                </div>
-                <div class="detailed-solution">
-                    <strong>📝 Detailed Solution:</strong><br> {detailed_solution}
-                </div>
+        <div id="content-to-capture">
+            <div class="header">💡 Solution & Approach</div>
+            <div class="smart-approach">
+                <strong>🚀 Smart Approach (Trick):</strong><br><br>{smart_approach}
+            </div>
+            <div class="detailed-solution">
+                <strong>📝 Detailed Solution:</strong><br><br>{detailed_solution}
             </div>
             <div class="watermark">@iam_MukeshManya_Rj08</div>
         </div>
@@ -88,14 +87,13 @@ def generate_solution_image(smart_approach, detailed_solution, output_filename="
     </html>
     """
     
-    # Playwright का जादू: यह बिना क्रैश हुए एकदम परफेक्ट फोटो लेगा
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True, args=['--no-sandbox', '--disable-dev-shm-usage'])
-        page = browser.new_page()
+        # 💡 असली जादू: device_scale_factor=3 (यह फोटो को 3 गुना ज़ूम करके Ultra HD बना देगा)
+        page = browser.new_page(viewport={'width': 1000, 'height': 800}, device_scale_factor=3)
         page.set_content(html_content)
-        # MathJax (Maths के फॉर्मूले) को रेंडर होने का टाइम देना
-        page.wait_for_timeout(3000) 
-        # सिर्फ अपने कंटेंट वाले हिस्से की फोटो लेना (ताकि फालतू खाली जगह ना आए)
+        # MathJax (Maths के फॉर्मूले) को अच्छे से रेंडर होने के लिए 4 सेकंड का टाइम दिया है
+        page.wait_for_timeout(4000) 
         element = page.locator("#content-to-capture")
         element.screenshot(path=output_filename)
         browser.close()
