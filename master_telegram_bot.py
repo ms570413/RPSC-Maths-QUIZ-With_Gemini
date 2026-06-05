@@ -105,31 +105,36 @@ def main():
     files = sorted([f for f in os.listdir(INPUT_FOLDER) if f.endswith(('.jpg', '.jpeg', '.png'))])
     
     if not files:
-        print("🎉 बधाई हो! सारे सवाल पूरे हो चुके हैं। फोल्डर खाली है।")
+        print("🎉 Badhai ho! Saare sawal pure ho chuke hain. Folder khali hai.")
         return
 
-    # 💡 अब यह एक-एक करके सारे सवालों को प्रोसेस करेगा
-    for current_question_file in files:
+    # 💡 Yahan humne Daily Limit 100 set kar di hai!
+    daily_limit = 100
+    files_to_process = files[:daily_limit]
+    
+    print(f"📦 Aaj ke liye total {len(files_to_process)} questions process honge...")
+
+    for current_question_file in files_to_process:
         question_path = os.path.join(INPUT_FOLDER, current_question_file)
         
-        print(f"\n🚀 प्रोसेसिंग शुरू: {current_question_file}")
+        print(f"\n🚀 Processing shuru: {current_question_file}")
 
         send_photo_to_telegram(question_path, caption=f"🎯 Question ID: {current_question_file.split('.')[0]}")
 
-        # 💡 नया प्रॉम्प्ट: एकदम कड़क और शॉर्टकट (आपका उदाहरण शामिल है)
+        # Naya aur smart prompt
         prompt = """
-        तुम एक एक्सपर्ट RPSC 2nd Grade Mathematics टीचर हो।
-        इस फोटो में दिए गए गणित के MCQ को सॉल्व करो। 
+        tum ek expert RPSC 2nd Grade Mathematics teacher ho.
+        is photo mein diye gaye maths ke MCQ ko solve karo. 
         
-        RULE 1: कोई लंबा स्टेप-बाय-स्टेप हल बिलकुल नहीं देना है। पूरी कैलकुलेशन मत दिखाना।
-        RULE 2: 'smart_approach' में केवल शॉर्ट ट्रिक, डायरेक्ट फार्मूला या ऑप्शन एलिमिनेशन (by options) का तरीका बताओ जिससे एग्जाम में 5-10 सेकंड में उत्तर निकाला जा सके। 
-        RULE 3: (उदाहरण: अगर singular solution का सवाल हो, तो सिर्फ इतना बताओ कि "p के respect में derivative करके p को main equation और derivative equation की हेल्प से विलोप (eliminate) करते हैं", फालतू स्टेप्स मत लिखो)।
-        RULE 4: गणित के सभी वेरिएबल्स (जैसे x, y, p) और फॉर्मूलों को हमेशा $$...$$ (LaTeX) के अंदर ही लिखना।
+        RULE 1: koi lamba step-by-step hal bilkul nahi dena hai. puri calculation mat dikhana.
+        RULE 2: 'smart_approach' mein kewal short trick, direct formula ya option elimination (by options) ka tarika batao jisse exam mein 5-10 second mein uttar nikala ja sake. 
+        RULE 3: (udaharan: agar singular solution ka sawal ho, toh sirf itna batao ki "p ke respect mein derivative karke p ko main equation aur derivative equation ki help se vilop (eliminate) karte hain", faltu steps mat likho).
+        RULE 4: maths ke sabhi variables (jaise x, y, p) aur formulas ko hamesha $$...$$ (LaTeX) ke andar hi likhna.
 
-        STRICT INSTRUCTION: अपना जवाब सिर्फ और सिर्फ नीचे दिए गए XML फॉर्मेट में ही देना:
+        STRICT INSTRUCTION: apna jawab sirf aur sirf niche diye gaye XML format mein hi dena:
         
         <correct_option>C</correct_option>
-        <smart_approach>यहाँ आपकी शॉर्ट ट्रिक या ऑप्शन एलिमिनेशन का तरीका...</smart_approach>
+        <smart_approach>yahan aapki short trick ya option elimination ka tarika...</smart_approach>
         """
         
         max_retries = 3
@@ -137,7 +142,7 @@ def main():
         
         for attempt in range(max_retries):
             try:
-                print(f"🧠 Gemini दिमाग लगा रहा है... (Attempt {attempt + 1})")
+                print(f"🧠 Gemini dimaag laga raha hai... (Attempt {attempt + 1})")
                 img = Image.open(question_path)
                 response = client.models.generate_content(
                     model='gemini-2.5-flash',
@@ -146,16 +151,16 @@ def main():
                 break
                 
             except Exception as e:
-                print(f"⚠️ Attempt {attempt + 1} फेल हुआ: {e}")
+                print(f"⚠️ Attempt {attempt + 1} fail hua: {e}")
                 if attempt < max_retries - 1:
-                    print("⏳ सर्वर बिजी है। 15 सेकंड बाद वापस ट्राई कर रहा हूँ...")
+                    print("⏳ Server busy hai. 15 second baad wapas try kar raha hu...")
                     time.sleep(15)
                 else:
-                    print("❌ 3 बार ट्राई करने के बाद भी सर्वर बिजी है।")
-                    return # अगर सर्वर बिल्कुल डाउन है तो स्क्रिप्ट बंद कर दो
+                    print("❌ 3 baar try karne ke baad bhi server busy hai. Aaj ke liye rok rahe hain.")
+                    return # Server down hone par pura process rok dega
 
         if response is None:
-            continue # अगर यह सवाल फेल हुआ, तो अगले सवाल पर जाओ
+            continue
             
         try:
             text = response.text
@@ -172,16 +177,15 @@ def main():
             if os.path.exists(sol_image_path):
                 os.remove(sol_image_path)
                 
-            print(f"✅ {current_question_file} का काम सफलतापूर्वक पूरा हुआ!")
+            print(f"✅ {current_question_file} ka kaam successfully pura hua!")
             
-            # 💡 10 सेकंड का ब्रेक ताकि Gemini API की लिमिट क्रॉस ना हो
-            print("⏳ 10 सेकंड का ब्रेक ले रहे हैं ताकि API ब्लॉक ना हो...")
+            print("⏳ 10 second ka break le rahe hain taki API block na ho...")
             time.sleep(10)
 
         except Exception as e:
-            print(f"❌ आउटपुट पढ़ने या फोटो बनाने में एरर आ गई: {e}")
+            print(f"❌ Output padhne ya photo banane mein error aa gayi: {e}")
             print("AI Response:", response.text if response else "No response")
-            continue # एरर आए तो अगले सवाल पर बढ़ जाओ
+            continue
 
 if __name__ == "__main__":
     main()
