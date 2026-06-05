@@ -6,7 +6,7 @@ import requests
 import json
 from google import genai
 from PIL import Image
-from html2image import Html2Image
+from playwright.sync_api import sync_playwright
 
 # ==========================================
 # 🛑 GitHub Secrets से डेटा
@@ -21,16 +21,6 @@ DONE_FOLDER = "Done_Questions"
 # सेटअप
 os.makedirs(DONE_FOLDER, exist_ok=True)
 client = genai.Client(api_key=GEMINI_API_KEY)
-
-# 🔧 Xvfb Display Flags (Simple & Super Fast)
-hti = Html2Image(custom_flags=[
-    '--no-sandbox',
-    '--disable-dev-shm-usage',
-    '--disable-gpu',
-    '--incognito',
-    '--window-size=850,1000',
-    '--hide-scrollbars'
-])
 
 def send_photo_to_telegram(image_path, caption=""):
     print("📤 Telegram पर फोटो भेज रहे हैं...")
@@ -59,7 +49,7 @@ def send_poll_to_telegram(correct_option_letter):
     requests.post(url, data=payload)
 
 def generate_solution_image(smart_approach, detailed_solution, output_filename="solution_hd.png"):
-    print("🎨 HD Solution Image बना रहे हैं...")
+    print("🎨 Playwright से HD Solution Image बना रहे हैं...")
     
     smart_approach = smart_approach.replace('\n', '<br>')
     detailed_solution = detailed_solution.replace('\n', '<br>')
@@ -72,7 +62,8 @@ def generate_solution_image(smart_approach, detailed_solution, output_filename="
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
         <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
         <style>
-            body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f9; padding: 40px; color: #333; width: 800px; }}
+            body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f9; padding: 40px; color: #333; }}
+            .main-wrapper {{ width: 800px; display: inline-block; }}
             .container {{ background-color: #fff; padding: 30px; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-left: 8px solid #ff7e5f; }}
             .header {{ font-size: 26px; font-weight: bold; color: #ff7e5f; margin-bottom: 20px; border-bottom: 2px solid #eee; padding-bottom: 10px; }}
             .smart-approach {{ background-color: #e8f5e9; padding: 20px; border-radius: 10px; margin-bottom: 20px; border-left: 5px solid #4caf50; font-size: 20px; }}
@@ -81,22 +72,34 @@ def generate_solution_image(smart_approach, detailed_solution, output_filename="
         </style>
     </head>
     <body>
-        <div class="container">
-            <div class="header">💡 Solution & Approach</div>
-            <div class="smart-approach">
-                <strong>🚀 Smart Approach (Trick):</strong><br> {smart_approach}
+        <div class="main-wrapper" id="content-to-capture">
+            <div class="container">
+                <div class="header">💡 Solution & Approach</div>
+                <div class="smart-approach">
+                    <strong>🚀 Smart Approach (Trick):</strong><br> {smart_approach}
+                </div>
+                <div class="detailed-solution">
+                    <strong>📝 Detailed Solution:</strong><br> {detailed_solution}
+                </div>
             </div>
-            <div class="detailed-solution">
-                <strong>📝 Detailed Solution:</strong><br> {detailed_solution}
-            </div>
+            <div class="watermark">@iam_MukeshManya_Rj08</div>
         </div>
-        <div class="watermark">@iam_MukeshManya_Rj08</div>
     </body>
     </html>
     """
     
-    hti.screenshot(html_str=html_content, save_as=output_filename)
-    time.sleep(2) 
+    # Playwright का जादू: यह बिना क्रैश हुए एकदम परफेक्ट फोटो लेगा
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True, args=['--no-sandbox', '--disable-dev-shm-usage'])
+        page = browser.new_page()
+        page.set_content(html_content)
+        # MathJax (Maths के फॉर्मूले) को रेंडर होने का टाइम देना
+        page.wait_for_timeout(3000) 
+        # सिर्फ अपने कंटेंट वाले हिस्से की फोटो लेना (ताकि फालतू खाली जगह ना आए)
+        element = page.locator("#content-to-capture")
+        element.screenshot(path=output_filename)
+        browser.close()
+        
     return output_filename
 
 def main():
@@ -111,10 +114,8 @@ def main():
     
     print(f"\n🚀 प्रोसेसिंग शुरू: {current_question_file}")
 
-    # 1. Telegram पर सवाल भेजना
     send_photo_to_telegram(question_path, caption=f"🎯 Question ID: {current_question_file.split('.')[0]}")
 
-    # 2. Gemini से सॉल्व करवाना
     prompt = """
     तुम एक एक्सपर्ट RPSC 2nd Grade Mathematics टीचर हो।
     इस फोटो में दिए गए गणित के MCQ को सॉल्व करो। 
@@ -132,7 +133,6 @@ def main():
     max_retries = 3
     response = None
     
-    # 🔁 Auto-Retry Loop (503 Error Fix)
     for attempt in range(max_retries):
         try:
             print(f"🧠 Gemini दिमाग लगा रहा है... (Attempt {attempt + 1})")
@@ -157,23 +157,16 @@ def main():
         
     try:
         text = response.text
-        # Regex से डेटा निकालना
         correct_opt = re.search(r'<correct_option>(.*?)</correct_option>', text, re.DOTALL | re.IGNORECASE).group(1).strip()
         smart_app = re.search(r'<smart_approach>(.*?)</smart_approach>', text, re.DOTALL | re.IGNORECASE).group(1).strip()
         detailed_sol = re.search(r'<detailed_solution>(.*?)</detailed_solution>', text, re.DOTALL | re.IGNORECASE).group(1).strip()
         
-        # 3. Telegram पर Poll भेजना
         send_poll_to_telegram(correct_opt)
         
-        # 4. HD Solution Image बनाना और भेजना
         sol_image_path = generate_solution_image(smart_app, detailed_sol)
         if os.path.exists(sol_image_path):
             send_photo_to_telegram(sol_image_path, caption="💡 Solution by Master Bot")
-        else:
-            print("❌ Chrome ने HD फोटो जनरेट नहीं की।")
-            return
         
-        # 5. सफाई करना (फाइल को Done में डालना)
         shutil.move(question_path, os.path.join(DONE_FOLDER, current_question_file))
         if os.path.exists(sol_image_path):
             os.remove(sol_image_path)
