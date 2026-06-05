@@ -22,8 +22,10 @@ jobs:
 
       - name: Install Google Chrome
         run: |
-          sudo apt-get update
+         sudo apt-get update
           sudo apt-get install -y google-chrome-stable
+          # 💡 यह लाइन सबसे ज़रूरी है, इसे जोड़ दें:
+          export DISPLAY=:99
 
       - name: Run Master AI Bot
         env:
