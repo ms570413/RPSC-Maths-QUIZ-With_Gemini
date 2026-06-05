@@ -20,19 +20,18 @@ jobs:
       - name: Install Dependencies
         run: pip install -r requirements.txt
 
-      - name: Install Google Chrome
+      - name: Install Google Chrome and Xvfb
         run: |
-         sudo apt-get update
-          sudo apt-get install -y google-chrome-stable
-          # 💡 यह लाइन सबसे ज़रूरी है, इसे जोड़ दें:
-          export DISPLAY=:99
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable xvfb
 
       - name: Run Master AI Bot
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python master_telegram_bot.py
+        # 💡 Xvfb के ज़रिए नकली स्क्रीन पर बॉट चलाना
+        run: xvfb-run --auto-servernum python master_telegram_bot.py
 
       - name: Save Changes to GitHub
         run: |
