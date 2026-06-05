@@ -83,7 +83,7 @@ def generate_solution_image(smart_approach, detailed_solution, output_filename="
     </html>
     """
     
-    hti.snapshot(html_str=html_content, save_as=output_filename)
+    hti.screenshot(html_str=html_content, save_as=output_filename)
     time.sleep(2) 
     return output_filename
 
