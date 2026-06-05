@@ -40,25 +40,32 @@ def send_photo_to_telegram(image_path, caption=""):
             
     return result
 
-def send_poll_to_telegram(correct_option_letter):
-    print("📊 Telegram par Poll bhej rahe hain...")
+def send_poll_to_telegram(correct_option_text):
+    print(f"📊 Telegram par Poll bhej rahe hain... (AI ne diya: {correct_option_text})")
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPoll"
     
-    clean_opt = correct_option_letter.replace('(', '').replace(')', '').strip().lower()
+    # 💡 स्मार्ट फ़िल्टर: AI के जवाब में से सिर्फ a, b, c, d या 1, 2, 3, 4 निकालेगा
+    match = re.search(r'[a-d1-4]', correct_option_text.lower())
+    clean_opt = match.group(0) if match else "a" # अगर कुछ समझ ना आए तो डिफ़ॉल्ट A
+    
     option_map = {"a": 0, "b": 1, "c": 2, "d": 3, "1": 0, "2": 1, "3": 2, "4": 3}
     correct_id = option_map.get(clean_opt, 0)
 
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
-        "question": "Q. Sahi uttar chunein:",
-        "options": json.dumps(["Option A (ya 1)", "Option B (ya 2)", "Option C (ya 3)", "Option D (ya 4)"]),
+        "question": "Q. सही उत्तर चुनें (Choose the correct option):",
+        "options": json.dumps(["Option A (या 1)", "Option B (या 2)", "Option C (या 3)", "Option D (या 4)"]),
         "type": "quiz",
         "correct_option_id": correct_id,
         "is_anonymous": False
     }
-    requests.post(url, data=payload)
+    
+    res = requests.post(url, data=payload)
+    if not res.json().get("ok"):
+        print("❌ Poll bhejne me error aayi:", res.text)
+    else:
+        print("✅ Poll successfully bhej diya gaya!")
 
-# 💡 Yahan se detailed_solution hata diya gaya hai
 def generate_solution_image(smart_approach, output_filename="solution_hd.png"):
     print("🎨 Playwright se Smart HD Image bana rahe hain...")
     
@@ -67,7 +74,15 @@ def generate_solution_image(smart_approach, output_filename="solution_hd.png"):
     <html>
     <head>
         <meta charset="UTF-8">
-        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+        <script>
+        MathJax = {{
+          tex: {{
+            inlineMath: [['$', '$'], ['\\\\(', '\\\\)']],
+            displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']],
+            processEscapes: true
+          }}
+        }};
+        </script>
         <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
         <style>
             body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f9; padding: 30px; color: #333; margin: 0; }}
@@ -82,7 +97,7 @@ def generate_solution_image(smart_approach, output_filename="solution_hd.png"):
         <div id="content-to-capture">
             <div class="header">💡 Smart Approach & Option Elimination</div>
             <div class="smart-approach">
-                {smart_approach}
+{smart_approach}
             </div>
             <div class="watermark">@iam_MukeshManya_Rj08</div>
         </div>
@@ -94,7 +109,8 @@ def generate_solution_image(smart_approach, output_filename="solution_hd.png"):
         browser = p.chromium.launch(headless=True, args=['--no-sandbox', '--disable-dev-shm-usage'])
         page = browser.new_page(viewport={'width': 1000, 'height': 600}, device_scale_factor=2)
         page.set_content(html_content)
-        page.wait_for_timeout(3500) 
+        # 💡 टाइमर को थोड़ा बढ़ा दिया है ताकि Maths आराम से रेंडर हो सके
+        page.wait_for_timeout(4000) 
         element = page.locator("#content-to-capture")
         element.screenshot(path=output_filename)
         browser.close()
@@ -108,7 +124,7 @@ def main():
         print("🎉 Badhai ho! Saare sawal pure ho chuke hain. Folder khali hai.")
         return
 
-    # 💡 Yahan humne Daily Limit 100 set kar di hai!
+    # 💡 Daily Limit: सिर्फ 100 सवाल प्रोसेस होंगे
     daily_limit = 100
     files_to_process = files[:daily_limit]
     
@@ -121,7 +137,6 @@ def main():
 
         send_photo_to_telegram(question_path, caption=f"🎯 Question ID: {current_question_file.split('.')[0]}")
 
-        # Naya aur smart prompt
         prompt = """
         tum ek expert RPSC 2nd Grade Mathematics teacher ho.
         is photo mein diye gaye maths ke MCQ ko solve karo. 
@@ -129,7 +144,7 @@ def main():
         RULE 1: koi lamba step-by-step hal bilkul nahi dena hai. puri calculation mat dikhana.
         RULE 2: 'smart_approach' mein kewal short trick, direct formula ya option elimination (by options) ka tarika batao jisse exam mein 5-10 second mein uttar nikala ja sake. 
         RULE 3: (udaharan: agar singular solution ka sawal ho, toh sirf itna batao ki "p ke respect mein derivative karke p ko main equation aur derivative equation ki help se vilop (eliminate) karte hain", faltu steps mat likho).
-        RULE 4: maths ke sabhi variables (jaise x, y, p) aur formulas ko hamesha $$...$$ (LaTeX) ke andar hi likhna.
+        RULE 4: maths ke sabhi variables aur formulas ko hamesha $$...$$ ya $...$ (LaTeX) ke andar hi likhna.
 
         STRICT INSTRUCTION: apna jawab sirf aur sirf niche diye gaye XML format mein hi dena:
         
@@ -157,7 +172,7 @@ def main():
                     time.sleep(15)
                 else:
                     print("❌ 3 baar try karne ke baad bhi server busy hai. Aaj ke liye rok rahe hain.")
-                    return # Server down hone par pura process rok dega
+                    return 
 
         if response is None:
             continue
@@ -167,8 +182,10 @@ def main():
             correct_opt = re.search(r'<correct_option>(.*?)</correct_option>', text, re.DOTALL | re.IGNORECASE).group(1).strip()
             smart_app = re.search(r'<smart_approach>(.*?)</smart_approach>', text, re.DOTALL | re.IGNORECASE).group(1).strip()
             
+            # 💡 सबसे पहले पोल भेजेंगे
             send_poll_to_telegram(correct_opt)
             
+            # 💡 उसके बाद सॉल्यूशन इमेज भेजेंगे
             sol_image_path = generate_solution_image(smart_app)
             if os.path.exists(sol_image_path):
                 send_photo_to_telegram(sol_image_path, caption="💡 Smart Solution by Master Bot")
