@@ -9,15 +9,14 @@ from PIL import Image
 from playwright.sync_api import sync_playwright
 
 # ==========================================
-# 🛑 MULTI-KEY SYSTEM: Sari keys load karna
+# 🛑 MULTI-KEY SYSTEM: Sari 7 keys load karna
 # ==========================================
 API_KEYS = []
-for i in range(1, 6): 
+for i in range(1, 8):  # 💡 1 se 7 keys tak uthayega
     k = os.environ.get(f"GEMINI_API_KEY_{i}")
     if k:
         API_KEYS.append(k)
 
-# Agar purani key bhi hui toh use fallback me le lenge
 if not API_KEYS:
     k = os.environ.get("GEMINI_API_KEY")
     if k:
@@ -34,7 +33,7 @@ INPUT_FOLDER = "Final_Mixed_Bank"
 DONE_FOLDER = "Done_Questions"
 os.makedirs(DONE_FOLDER, exist_ok=True)
 
-# 💡 Setup Global Client
+# Setup Global Client
 current_key_index = 0
 client = genai.Client(api_key=API_KEYS[current_key_index])
 
@@ -135,8 +134,8 @@ def main():
         print("🎉 Badhai ho! Saare sawal pure ho chuke hain. Folder khali hai.")
         return
 
-    # 💡 Ab ek baar me 100 questions process honge, bina lambe break ke!
-    batch_limit = 100
+    # 💡 NAYA BATCH SIZE: 20 Sawal ek baar mein
+    batch_limit = 20
     files_to_process = files[:batch_limit]
     
     print(f"📦 Is batch ke liye total {len(files_to_process)} questions process honge...")
@@ -179,10 +178,9 @@ def main():
                 error_msg = str(e)
                 print(f"⚠️ Attempt {attempt + 1} fail hua: {error_msg}")
                 
-                # 💡 MULTI-KEY SWITCHING LOGIC
                 if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
                     if switch_api_key():
-                        time.sleep(2) # Key switch ki, 2 sec ruko aur aage badho
+                        time.sleep(2)
                         continue
                     else:
                         print("⏳ Sari API keys khatam ho gayi! 60 second ka break le rahe hain...")
@@ -214,8 +212,8 @@ def main():
                 
             print(f"✅ {current_question_file} ka kaam successfully pura hua!")
             
-            # Ab lambe break ki zarurat nahi, bas 5 second tak bot saans lega
-            time.sleep(5)
+            # 💡 Har sawal ke baad thoda normal break (30 sec) tak ki speed bhi maintain rahe
+            time.sleep(30)
 
         except Exception as e:
             print(f"❌ Output padhne ya photo banane mein error aa gayi: {e}")
