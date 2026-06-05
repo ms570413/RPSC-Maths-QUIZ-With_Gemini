@@ -23,18 +23,23 @@ DONE_FOLDER = "Done_Questions"
 os.makedirs(DONE_FOLDER, exist_ok=True)
 client = genai.Client(api_key=GEMINI_API_KEY)
 
-# 🔧 Server-Safe Chrome Flags (अब यह कभी क्रैश नहीं होगा)
-hti = Html2Image(custom_flags=[
-    '--headless',
-    '--no-sandbox',
-    '--disable-gpu',
-    '--disable-dev-shm-usage',
-    '--disable-software-rasterizer',
-    '--disable-dbus',
-    '--disable-background-networking',
-    '--virtual-time-budget=10000',
-    '--hide-scrollbars'
-])
+# 🔧 Server-Safe Chrome Flags (The Ultimate Fix)
+hti = Html2Image(
+    browser_executable='/usr/bin/google-chrome',
+    custom_flags=[
+        '--headless=new',
+        '--no-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--no-zygote',
+        '--single-process',
+        '--disable-software-rasterizer',
+        '--disable-background-networking',
+        '--disable-extensions',
+        '--log-level=3',
+        '--hide-scrollbars'
+    ]
+)
 
 def send_photo_to_telegram(image_path, caption=""):
     print("📤 Telegram पर फोटो भेज रहे हैं...")
