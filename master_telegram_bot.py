@@ -22,14 +22,22 @@ DONE_FOLDER = "Done_Questions"
 os.makedirs(DONE_FOLDER, exist_ok=True)
 client = genai.Client(api_key=GEMINI_API_KEY)
 
-# 🔧 Rock-Solid Chrome Flags (अब यह GitHub सर्वर पर क्रैश नहीं होगा)
+# 🔧 Bulletproof Chrome Flags
 hti = Html2Image(custom_flags=[
+    '--headless=new',
     '--no-sandbox',
-    '--disable-dev-shm-usage',
     '--disable-gpu',
-    '--headless',
-    '--virtual-time-budget=10000',
-    '--hide-scrollbars'
+    '--disable-dev-shm-usage',
+    '--disable-software-rasterizer',
+    '--disable-extensions',
+    '--disable-sync',
+    '--disable-default-apps',
+    '--no-zygote',
+    '--single-process',
+    '--disable-dbus',
+    '--mute-audio',
+    '--no-first-run',
+    '--disable-setuid-sandbox'
 ])
 
 def send_photo_to_telegram(image_path, caption=""):
