@@ -22,8 +22,15 @@ DONE_FOLDER = "Done_Questions"
 # फोल्डर चेक करना और सेटअप
 os.makedirs(DONE_FOLDER, exist_ok=True)
 client = genai.Client(api_key=GEMINI_API_KEY)
-hti = Html2Image(custom_flags=['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', '--virtual-time-budget=10000', '--hide-scrollbars'])
-
+hti = Html2Image(custom_flags=[
+    '--headless', 
+    '--no-sandbox', 
+    '--disable-gpu', 
+    '--disable-dev-shm-usage', 
+    '--disable-software-rasterizer', 
+    '--disable-dbus', 
+    '--disable-background-networking'
+])
 def send_photo_to_telegram(image_path, caption=""):
     print("📤 Telegram पर फोटो भेज रहे हैं...")
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
