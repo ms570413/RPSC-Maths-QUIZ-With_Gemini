@@ -140,15 +140,37 @@ def main():
     <detailed_solution>यहाँ पूरा स्टेप-बाय-स्टेप हल...</detailed_solution>
     """
     
+   # 2. Gemini se solve karwana (Auto-Retry ke sath)
+    
+    max_retries = 3
+    response = None
+    
+    for attempt in range(max_retries):
+        try:
+            print(f"🧠 Gemini dimaag laga raha hai... (Attempt {attempt + 1})")
+            img = Image.open(question_path)
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=[prompt, img]
+            )
+            break  # Agar success mil gayi, toh loop tod do aur aage bado
+            
+        except Exception as e:
+            print(f"⚠️ Attempt {attempt + 1} fail hua: {e}")
+            if attempt < max_retries - 1:
+                print("⏳ Server busy hai. 15 second baad wapas try kar raha hu...")
+                time.sleep(15)
+            else:
+                print("❌ 3 baar try karne ke baad bhi server busy hai. Aaj ka process rok raha hu.")
+                return # 3 baar fail hua toh aaj ka process cancel
+
+    if response is None:
+        return
+
     try:
-        print("🧠 Gemini दिमाग लगा रहा है...")
-        img = Image.open(question_path)
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=[prompt, img]
-        )
-        
         text = response.text
+        # Regex se data nikalna (Error-Free tarika)
+# ... (iske aage ka code waisa hi rahega, jisme send_poll_to_telegram aur HD image banane ka code hai) ...
         
         # Regex से डेटा निकालना (Error-Free तरीका)
         try:
