@@ -2,8 +2,7 @@ name: RPSC Math Bot Daily Runner
 
 on:
   schedule:
-    # 💡 IST के हिसाब से रात 1:00, 3:00, सुबह 5:00 और 7:00 बजे चलेगा
-    - cron: '30 19,21,23,1 * * *'
+    - cron: '30 22 * * *' # Roz subah 4:00 baje IST chalega aur 100 sawal ek sath karega
   workflow_dispatch: 
 
 jobs:
@@ -28,7 +27,11 @@ jobs:
 
       - name: Run Master AI Bot
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # 💡 Yahan sari keys connect kar di hain
+          GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
+          GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+          GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
+          GEMINI_API_KEY_4: ${{ secrets.GEMINI_API_KEY_4 }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python master_telegram_bot.py
