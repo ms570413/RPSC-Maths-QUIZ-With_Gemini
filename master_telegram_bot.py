@@ -9,10 +9,10 @@ from PIL import Image
 from playwright.sync_api import sync_playwright
 
 # ==========================================
-# 🛑 MULTI-KEY SYSTEM: Sari 7 keys load karna
+# 🛑 MULTI-KEY SYSTEM: Sari 10 keys load karna
 # ==========================================
 API_KEYS = []
-for i in range(1, 8):  # 💡 1 se 7 keys tak uthayega
+for i in range(1, 11):  # 💡 1 se 10 keys tak uthayega
     k = os.environ.get(f"GEMINI_API_KEY_{i}")
     if k:
         API_KEYS.append(k)
@@ -134,8 +134,8 @@ def main():
         print("🎉 Badhai ho! Saare sawal pure ho chuke hain. Folder khali hai.")
         return
 
-    # 💡 NAYA BATCH SIZE: 20 Sawal ek baar mein
-    batch_limit = 20
+    # 💡 NAYA BATCH SIZE: 50 Sawal ek baar mein
+    batch_limit = 50
     files_to_process = files[:batch_limit]
     
     print(f"📦 Is batch ke liye total {len(files_to_process)} questions process honge...")
@@ -212,7 +212,6 @@ def main():
                 
             print(f"✅ {current_question_file} ka kaam successfully pura hua!")
             
-            # 💡 Har sawal ke baad thoda normal break (30 sec) tak ki speed bhi maintain rahe
             time.sleep(30)
 
         except Exception as e:
@@ -222,3 +221,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
