@@ -2,8 +2,8 @@ name: RPSC Math Bot Daily Runner
 
 on:
   schedule:
-    # 💡 IST के हिसाब से रात 12:00, 2:00, 4:00, सुबह 6:00 और 8:00 बजे (2-2 घंटे का गैप)
-    - cron: '30 18,20,22,0,2 * * *'
+    # 💡 IST के हिसाब से दोपहर 2:00 बजे और रात 2:00 बजे चलेगा (12 घंटे का गैप)
+    - cron: '30 8,20 * * *'
   workflow_dispatch: 
 
 jobs:
@@ -28,7 +28,7 @@ jobs:
 
       - name: Run Master AI Bot
         env:
-          # 💡 Yahan sari 7 keys connect kar di hain
+          # 💡 Yahan sari 10 keys connect kar di hain
           GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
           GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
@@ -36,6 +36,9 @@ jobs:
           GEMINI_API_KEY_5: ${{ secrets.GEMINI_API_KEY_5 }}
           GEMINI_API_KEY_6: ${{ secrets.GEMINI_API_KEY_6 }}
           GEMINI_API_KEY_7: ${{ secrets.GEMINI_API_KEY_7 }}
+          GEMINI_API_KEY_8: ${{ secrets.GEMINI_API_KEY_8 }}
+          GEMINI_API_KEY_9: ${{ secrets.GEMINI_API_KEY_9 }}
+          GEMINI_API_KEY_10: ${{ secrets.GEMINI_API_KEY_10 }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python master_telegram_bot.py
@@ -45,5 +48,5 @@ jobs:
           git config --global user.name "MasterBot"
           git config --global user.email "bot@rpsc.com"
           git add .
-          git commit -m "✅ Auto-moved posted question to Done folder" || echo "No changes to commit"
+          git commit -m "✅ Auto-moved 50 questions to Done folder" || echo "No changes to commit"
           git push
