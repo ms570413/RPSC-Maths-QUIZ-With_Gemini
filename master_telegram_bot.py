@@ -154,6 +154,16 @@ def main():
         RULE 1: koi lamba step-by-step hal bilkul nahi dena hai. puri calculation mat dikhana.
         RULE 2: 'smart_approach' mein kewal short trick, direct formula ya option elimination ka tarika batao jisse exam mein 5-10 second mein uttar nikala ja sake. 
         RULE 3: maths ki har ek choti-badi equation, fraction (jaise \\frac), variables (x, y) ko LAZMI TAUR PAR $$...$$ ya $...$ (LaTeX) ke andar hi likhna. bina $ lagaye koi bhi math term mat likhna, warna error aayegi.
+        RULE 4: CRITICAL IMAGE PARSING & OPTIONS RULES:
+1. Identify the Main Question: The primary question number is located on the far left. The actual question text starts to the right of this number and continues below it.
+2. STRICTLY IGNORE TOP OPTIONS: If you see isolated options (like A, B, C, D or 1, 2, 3, 4) at the very TOP of the image (ABOVE the main question number), YOU MUST IGNORE THEM. They are leftover options from the previous question. 
+   - Note: If there is general context/theory above the question number, consider it, but strictly ignore any standalone multiple-choice options at the top.
+3. True Options are BELOW: The actual options for the current question are always located strictly BELOW the question text. 
+4. MISSING OPTIONS GENERATION (CRITICAL): 
+   - Look for the options below the question. 
+   - If all 4 options are clearly visible, extract them as A, B, C, and D.
+   - IF OPTIONS ARE MISSING OR INCOMPLETE (e.g., 0 options, or only 2-3 options visible), YOU MUST ACT AS AN EXPERT AND GENERATE the missing plausible mathematical options yourself. 
+   - You must always output exactly 4 standard options (A, B, C, D) in the final JSON, whether you extracted them from the image or generated them yourself.
 
         STRICT INSTRUCTION: apna jawab sirf aur sirf niche diye gaye XML format mein hi dena:
         
