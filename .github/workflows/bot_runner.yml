@@ -49,4 +49,8 @@ jobs:
           git config --global user.email "bot@rpsc.com"
           git add .
           git commit -m "✅ Auto-moved 50 questions to Done folder" || echo "No changes to commit"
+          
+          # 💡 NAYA JUGAD: Push karne se pehle remote changes ko Pull (Rebase) karega
+          git pull --rebase origin main
+          
           git push
