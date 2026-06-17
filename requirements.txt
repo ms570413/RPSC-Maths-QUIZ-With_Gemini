@@ -1,5 +1,4 @@
-google-genai
+google-generativeai
 pillow
 requests
 playwright
-google-generativeai
