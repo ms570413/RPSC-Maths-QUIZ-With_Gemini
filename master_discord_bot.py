@@ -7,7 +7,7 @@ import requests
 from google import genai
 from google.genai import types
 
-# 💡 1. API Keys aur Discord Setup (Smart strip filter ke sath)
+# 💡 1. API Keys aur Discord Setup
 raw_keys = [
     os.getenv("GEMINI_API_KEY_1"), os.getenv("GEMINI_API_KEY_2"),
     os.getenv("GEMINI_API_KEY_3"), os.getenv("GEMINI_API_KEY_4"),
@@ -16,7 +16,6 @@ raw_keys = [
     os.getenv("GEMINI_API_KEY_9"), os.getenv("GEMINI_API_KEY_10")
 ]
 
-# 🧹 Invisible space aur enter hatane ke liye
 GEMINI_KEYS = [k.strip() for k in raw_keys if k is not None and k.strip() != ""]
 
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
@@ -28,20 +27,25 @@ QUESTIONS_PER_RUN = 25
 
 os.makedirs(DONE_FOLDER, exist_ok=True)
 
-# 💡 2. Discord Function (Reaction Polls ke sath)
+# 💡 2. Discord Function (Bina text options ke, sirf Question No., Photo aur Spoiler Answer)
 def send_to_discord(image_path, json_data):
     url = f"https://discord.com/api/v10/channels/{DISCORD_CHANNEL_ID}/messages"
     headers = {
         "Authorization": f"Bot {DISCORD_BOT_TOKEN}"
     }
     
-    content = f"🎯 **Question {json_data.get('question_number', 'N/A')}**\n\n"
-    options = json_data.get('options', {})
+    # Sirf Question Number print hoga (Photo wale number ke hisab se)
+    q_num = json_data.get('question_number', 'N/A')
+    content = f"🎯 **Question {q_num}**\n\n"
     
-    if 'A' in options: content += f"**A)** {options['A']}\n"
-    if 'B' in options: content += f"**B)** {options['B']}\n"
-    if 'C' in options: content += f"**C)** {options['C']}\n"
-    if 'D' in options: content += f"**D)** {options['D']}\n"
+    # 💡 NAYA JUGAD: Correct Answer aur Reason dono ko Spoiler ||...|| me chupa diya
+    correct_ans = json_data.get('correct_id', '')
+    reason = json_data.get('reason', '')
+    
+    content += f"||✅ **Correct Answer:** {correct_ans}"
+    if reason:
+        content += f"\n💡 **Solution:** {reason}"
+    content += "||"
     
     with open(image_path, 'rb') as f:
         files = {'file': (os.path.basename(image_path), f, 'image/jpeg')}
@@ -50,6 +54,7 @@ def send_to_discord(image_path, json_data):
         
         if response.status_code == 200:
             msg_id = response.json()['id']
+            # A, B, C, D ke reaction buttons lagayega
             reactions = ['🇦', '🇧', '🇨', '🇩']
             for reaction in reactions:
                 react_url = f"{url}/{msg_id}/reactions/{reaction}/@me"
@@ -61,52 +66,35 @@ def send_to_discord(image_path, json_data):
             print(f"⚠️ Discord Error: {response.text}")
             return False
 
-# 💡 3. NAYA Gemini Processing Function (google.genai library)
+# 💡 3. Gemini Processing Function
 def process_with_gemini(image_path, key_index):
-    # Naya Client format
     client = genai.Client(api_key=GEMINI_KEYS[key_index])
     
     prompt = """
     Role & Objective: Expert Mathematics content creator for RPSC 2nd Grade Mathematics exam.
-    Task: Extract the mathematics question and options from the uploaded image.
+    Task: Extract the mathematics question details from the uploaded image.
 
-    CRITICAL IMAGE PARSING & OPTIONS RULES:
-    1. Identify the Main Question: The primary question number is located on the far left. The actual question text starts to the right of this number.
-    2. STRICTLY IGNORE TOP OPTIONS: If you see isolated options (like A, B, C, D or 1, 2, 3, 4) at the very TOP of the image (ABOVE the main question number), YOU MUST IGNORE THEM. They are leftover options from the previous question.
-    3. True Options are BELOW: The actual options for the current question are always located strictly BELOW the question text.
-    4. MISSING OPTIONS GENERATION (CRITICAL): 
-       - Look for the options below the question. 
-       - If all 4 options are clearly visible, extract them as A, B, C, and D.
-       - IF OPTIONS ARE MISSING OR INCOMPLETE (e.g., 0 options, or only 2-3 options visible), YOU MUST ACT AS AN EXPERT AND GENERATE the missing plausible mathematical options yourself. 
-       - You must always output exactly 4 standard options (A, B, C, D) in the final JSON.
-
+    CRITICAL RULES:
+    1. Identify the Main Question Number exactly as printed in the image (e.g., 38, 55, etc.).
+    2. Read the image and extract the mathematical details.
+    3. Generate a logical reason/solution for the question.
+    
     General Formatting Rules ('Clean Mode'):
-    1. Enclose all mathematical equations, symbols, and variables within $$...$$ in Question and Options.
-    2. No Hindi (Devanagari) words should appear within $$...$$ boundaries.
-    3. No Math Delimiters in Reason: Never use $ or $$ signs in the reason field.
-    4. Bold Variables: In the reason field, write mathematical variables in bold.
-    5. Single Line Reason: The reason must be a continuous single line (no \n).
+    1. No Math Delimiters in Reason: Never use $ or $$ signs in the reason field.
+    2. Bold Variables: In the reason field, write mathematical variables in bold.
+    3. Single Line Reason: The reason must be a continuous single line (no \n).
 
-    Output strictly in this JSON template:
+    Output strictly in this JSON template without any markdown backticks:
     {
-      "question_number": "Extracted number",
-      "question": "Question text with $$math$$",
-      "options": {
-        "A": "Option A with $$math$$",
-        "B": "Option B with $$math$$",
-        "C": "Option C with $$math$$",
-        "D": "Option D with $$math$$"
-      },
+      "question_number": "Extracted number exactly as seen in image",
       "correct_id": "Randomly select A, B, C, or D",
       "reason": "Short explanation in mixed Hindi-English without latex dollars"
     }
     """
     
     try:
-        # Naya file upload system
         sample_file = client.files.upload(file=image_path)
         
-        # Naya content generation system
         response = client.models.generate_content(
             model='gemini-2.5-flash',
             contents=[sample_file, prompt],
@@ -118,7 +106,18 @@ def process_with_gemini(image_path, key_index):
                 response_mime_type="application/json",
             )
         )
-        return json.loads(response.text)
+        
+        raw_text = response.text.strip()
+        if raw_text.startswith("```json"):
+            raw_text = raw_text[7:]
+        elif raw_text.startswith("
+```"):
+            raw_text = raw_text[3:]
+        if raw_text.endswith("```"):
+            raw_text = raw_text[:-3]
+            
+        return json.loads(raw_text.strip())
+        
     except Exception as e:
         print(f"Gemini Error on key {key_index + 1}: {e}")
         return None
@@ -140,7 +139,6 @@ def main():
 
     key_index = 0
     
-    # Check if we have valid keys
     if not GEMINI_KEYS:
         print("⚠️ Koi valid API key nahi mili! Secrets check karo.")
         return
@@ -157,9 +155,9 @@ def main():
                 shutil.move(img_path, os.path.join(DONE_FOLDER, img_name))
                 print(f"📁 Moved to Done: {img_name}\n")
         
-        # Round robin key rotation
         key_index = (key_index + 1) % len(GEMINI_KEYS)
-        time.sleep(5) # API rate limit se bachne ke liye wait
+        
+        time.sleep(12) 
 
 if __name__ == "__main__":
     main()
