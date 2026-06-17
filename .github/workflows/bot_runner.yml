@@ -1,34 +1,45 @@
-name: RPSC Math Bot Daily Runner
+name: Run Master Telegram Bot
 
 on:
-  schedule:
-    # 💡 IST के हिसाब से दोपहर 2:00 बजे और रात 2:00 बजे चलेगा (12 घंटे का गैप)
-    - cron: '30 8,20 * * *'
-  workflow_dispatch: 
+  workflow_dispatch:
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
+      # Playwright aur pip cache taki 30 min na lage
+      - name: Cache pip packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('requirements.txt') }}
+
       - name: Install Dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y fonts-lohit-deva
           pip install -r requirements.txt
           playwright install chromium
-          playwright install-deps
 
       - name: Run Master AI Bot
         env:
-          # 💡 Yahan sari 10 keys connect kar di hain
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
           GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
@@ -39,18 +50,12 @@ jobs:
           GEMINI_API_KEY_8: ${{ secrets.GEMINI_API_KEY_8 }}
           GEMINI_API_KEY_9: ${{ secrets.GEMINI_API_KEY_9 }}
           GEMINI_API_KEY_10: ${{ secrets.GEMINI_API_KEY_10 }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python master_telegram_bot.py
 
       - name: Save Changes to GitHub
         run: |
-          git config --global user.name "MasterBot"
-          git config --global user.email "bot@rpsc.com"
-          git add .
-          git commit -m "✅ Auto-moved 50 questions to Done folder" || echo "No changes to commit"
-          
-          # 💡 NAYA JUGAD: Push karne se pehle remote changes ko Pull (Rebase) karega
-          git pull --rebase origin main
-          
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          git add Done_Questions/ Final_Mixed_Bank/
+          git commit -m "✅ Auto-moved questions to Done_Questions" || echo "No changes to commit"
           git push
