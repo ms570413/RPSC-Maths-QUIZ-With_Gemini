@@ -6,6 +6,7 @@ import random
 import requests
 from google import genai
 from google.genai import types
+from playwright.sync_api import sync_playwright
 
 # 💡 1. API Keys aur Discord Setup
 raw_keys = [
@@ -27,34 +28,81 @@ QUESTIONS_PER_RUN = 25
 
 os.makedirs(DONE_FOLDER, exist_ok=True)
 
-# 💡 2. Discord Function (Bina text options ke, sirf Question No., Photo aur Spoiler Answer)
+# 💡 2. Playwright se Blank Page par Solution Print karna
+def create_solution_image(reason_text, output_path="SPOILER_solution.png"):
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <style>
+            body {{ font-family: sans-serif; padding: 20px; background: white; font-size: 22px; color: #222; }}
+            .box {{ border: 2px solid #5865F2; padding: 20px; border-radius: 8px; background: #f9f9f9; display: inline-block; max-width: 800px; }}
+            h3 {{ color: #5865F2; margin-top: 0; margin-bottom: 15px; }}
+            p {{ margin: 0; line-height: 1.5; font-weight: bold; }}
+        </style>
+    </head>
+    <body>
+        <div class="box" id="solution-box">
+            <h3>💡 Solution</h3>
+            <p>{reason_text}</p>
+        </div>
+    </body>
+    </html>
+    """
+    
+    with open("temp_solution.html", "w", encoding="utf-8") as f:
+        f.write(html_content)
+        
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+        page.goto("file://" + os.path.abspath("temp_solution.html"), wait_until="networkidle")
+        time.sleep(0.5) 
+        element = page.locator("#solution-box")
+        element.screenshot(path=output_path)
+        browser.close()
+        
+    return output_path
+
+# 💡 3. Discord Function (Multiple Files & Spoiler Image)
 def send_to_discord(image_path, json_data):
     url = f"https://discord.com/api/v10/channels/{DISCORD_CHANNEL_ID}/messages"
     headers = {
         "Authorization": f"Bot {DISCORD_BOT_TOKEN}"
     }
     
-    # Sirf Question Number print hoga (Photo wale number ke hisab se)
-    q_num = json_data.get('question_number', 'N/A')
-    content = f"🎯 **Question {q_num}**\n\n"
+    # NAYA JUGAD: Photo ke file name ko hi Question ID bana diya
+    q_num = os.path.splitext(os.path.basename(image_path))[0]
+    content = f"🎯 **Question ID: {q_num}**\n\n"
     
-    # 💡 NAYA JUGAD: Correct Answer aur Reason dono ko Spoiler ||...|| me chupa diya
     correct_ans = json_data.get('correct_id', '')
+    content += f"||✅ **Correct Answer: {correct_ans}** ||"
+    
     reason = json_data.get('reason', '')
     
-    content += f"||✅ **Correct Answer:** {correct_ans}"
-    if reason:
-        content += f"\n💡 **Solution:** {reason}"
-    content += "||"
-    
-    with open(image_path, 'rb') as f:
-        files = {'file': (os.path.basename(image_path), f, 'image/jpeg')}
+    with open(image_path, 'rb') as f1:
+        # File 1: Original Question Image
+        files = {
+            'files[0]': (os.path.basename(image_path), f1, 'image/jpeg')
+        }
+        
+        # File 2: Playwright Solution Image (Spoiler)
+        f2 = None
+        if reason:
+            solution_img_path = create_solution_image(reason)
+            f2 = open(solution_img_path, 'rb')
+            files['files[1]'] = ("SPOILER_solution.png", f2, 'image/png')
+            
         payload = {'content': content}
         response = requests.post(url, headers=headers, data=payload, files=files)
         
+        if f2:
+            f2.close()
+            os.remove("SPOILER_solution.png") # Safai (Cleanup)
+            
         if response.status_code == 200:
             msg_id = response.json()['id']
-            # A, B, C, D ke reaction buttons lagayega
             reactions = ['🇦', '🇧', '🇨', '🇩']
             for reaction in reactions:
                 react_url = f"{url}/{msg_id}/reactions/{reaction}/@me"
@@ -66,19 +114,15 @@ def send_to_discord(image_path, json_data):
             print(f"⚠️ Discord Error: {response.text}")
             return False
 
-# 💡 3. Gemini Processing Function
+# 💡 4. Gemini Processing Function
 def process_with_gemini(image_path, key_index):
     client = genai.Client(api_key=GEMINI_KEYS[key_index])
     
+    # Prompt chota kar diya kyoki Question No. ab file name se aayega
     prompt = """
     Role & Objective: Expert Mathematics content creator for RPSC 2nd Grade Mathematics exam.
     Task: Extract the mathematics question details from the uploaded image.
 
-    CRITICAL RULES:
-    1. Identify the Main Question Number exactly as printed in the image (e.g., 38, 55, etc.).
-    2. Read the image and extract the mathematical details.
-    3. Generate a logical reason/solution for the question.
-    
     General Formatting Rules ('Clean Mode'):
     1. No Math Delimiters in Reason: Never use $ or $$ signs in the reason field.
     2. Bold Variables: In the reason field, write mathematical variables in bold.
@@ -86,7 +130,6 @@ def process_with_gemini(image_path, key_index):
 
     Output strictly in this JSON template without any markdown backticks:
     {
-      "question_number": "Extracted number exactly as seen in image",
       "correct_id": "Randomly select A, B, C, or D",
       "reason": "Short explanation in mixed Hindi-English without latex dollars"
     }
@@ -121,7 +164,7 @@ def process_with_gemini(image_path, key_index):
         print(f"Gemini Error on key {key_index + 1}: {e}")
         return None
 
-# 💡 4. Main Bot Logic
+# 💡 5. Main Bot Logic
 def main():
     if not os.path.exists(SOURCE_FOLDER):
         print(f"Folder {SOURCE_FOLDER} nahi mila!")
@@ -155,7 +198,6 @@ def main():
                 print(f"📁 Moved to Done: {img_name}\n")
         
         key_index = (key_index + 1) % len(GEMINI_KEYS)
-        
         time.sleep(12) 
 
 if __name__ == "__main__":
