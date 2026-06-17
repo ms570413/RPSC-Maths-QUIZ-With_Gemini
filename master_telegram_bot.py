@@ -162,8 +162,7 @@ def process_with_gemini(image_path, key_index):
         
         raw_text = response.text.strip()
         if raw_text.startswith("```json"): raw_text = raw_text[7:]
-        elif raw_text.startswith("
-```"): raw_text = raw_text[3:]
+        elif raw_text.startswith("```"): raw_text = raw_text[3:]
         if raw_text.endswith("```"): raw_text = raw_text[:-3]
             
         return json.loads(raw_text.strip(), strict=False)
