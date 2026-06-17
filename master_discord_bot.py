@@ -150,7 +150,6 @@ def process_with_gemini(image_path, key_index):
         
         raw_text = response.text.strip()
         
-        # Safe String Parsing
         if raw_text.startswith("```json"):
             raw_text = raw_text[7:]
         elif raw_text.startswith("```"):
@@ -165,13 +164,25 @@ def process_with_gemini(image_path, key_index):
         print(f"Gemini Error on key {key_index + 1}: {e}")
         return None
 
-# 💡 5. Main Bot Logic (Target 25)
+# 💡 5. File Sorting Helper Function (Naya JUGAD)
+def sort_by_first_number(filename):
+    try:
+        # File name ko '-' se todkar pehla hissa nikalega aur use asli number (integer) bana dega
+        return int(filename.split('-')[0])
+    except:
+        # Agar galti se koi ajeeb file aa jaye toh use list ke aakhir me daal dega
+        return 999999
+
+# 💡 6. Main Bot Logic (Target 25)
 def main():
     if not os.path.exists(SOURCE_FOLDER):
         print(f"Folder {SOURCE_FOLDER} nahi mila!")
         return
 
-    images = sorted([f for f in os.listdir(SOURCE_FOLDER) if f.endswith(('.png', '.jpg', '.jpeg'))])
+    # Yaha par naya file sorting logic laga diya hai
+    raw_images = [f for f in os.listdir(SOURCE_FOLDER) if f.endswith(('.png', '.jpg', '.jpeg'))]
+    images = sorted(raw_images, key=sort_by_first_number)
+    
     if not images:
         print("Bhai, Final_Mixed_Bank folder khali hai! Naye questions dalo.")
         return
