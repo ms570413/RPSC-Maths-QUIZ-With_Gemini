@@ -28,24 +28,66 @@ QUESTIONS_PER_RUN = 25
 
 os.makedirs(DONE_FOLDER, exist_ok=True)
 
-# 💡 2. Playwright se Blank Page par Solution Print karna
+# 💡 2. Playwright se Blank Page par MathJax + Devanagari Render karna
 def create_solution_image(reason_text, output_path="SPOILER_solution.png"):
+    # \n ko html ke <br> me badalna taki line break aaye
+    reason_html = reason_text.replace('\n', '<br>')
+    
     html_content = f"""
     <!DOCTYPE html>
     <html>
     <head>
         <meta charset="utf-8">
+        <!-- Google Devanagari Font -->
+        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;600&display=swap" rel="stylesheet">
+        
+        <!-- MathJax for rendering Mathematics (Root, Square, etc.) -->
+        <script>
+          window.MathJax = {{
+            tex: {{
+              inlineMath: [['$', '$'], ['$$', '$$'], ['\\\\(', '\\\\)']],
+              displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']]
+            }}
+          }};
+        </script>
+        <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+        
         <style>
-            body {{ font-family: sans-serif; padding: 20px; background: white; font-size: 22px; color: #222; }}
-            .box {{ border: 2px solid #5865F2; padding: 20px; border-radius: 8px; background: #f9f9f9; display: inline-block; max-width: 800px; }}
-            h3 {{ color: #5865F2; margin-top: 0; margin-bottom: 15px; }}
-            p {{ margin: 0; line-height: 1.5; font-weight: bold; }}
+            body {{ 
+                font-family: 'Noto Sans Devanagari', sans-serif; 
+                padding: 20px; 
+                background: white; 
+                font-size: 20px; 
+                color: #222; 
+                line-height: 1.6; 
+            }}
+            .box {{ 
+                border: 2px solid #5865F2; 
+                padding: 25px; 
+                border-radius: 10px; 
+                background: #fdfdfd; 
+                display: inline-block; 
+                min-width: 400px; 
+                max-width: 800px; 
+                box-shadow: 0px 4px 10px rgba(0,0,0,0.1); 
+            }}
+            h3 {{ 
+                color: #5865F2; 
+                margin-top: 0; 
+                margin-bottom: 15px; 
+                font-family: sans-serif; 
+                font-size: 24px; 
+                border-bottom: 2px solid #eee; 
+                padding-bottom: 10px; 
+            }}
+            p {{ margin: 0; font-weight: 500; }}
+            mjx-container {{ font-size: 115% !important; }} /* Math font thoda bada karne ke liye */
         </style>
     </head>
     <body>
         <div class="box" id="solution-box">
             <h3>💡 Solution</h3>
-            <p>{reason_text}</p>
+            <p>{reason_html}</p>
         </div>
     </body>
     </html>
@@ -57,22 +99,24 @@ def create_solution_image(reason_text, output_path="SPOILER_solution.png"):
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
-        page.goto("file://" + os.path.abspath("temp_solution.html"), wait_until="networkidle")
-        time.sleep(0.5) 
+        page.goto("file://" + os.path.abspath("temp_solution.html"))
+        
+        # MathJax ko render hone ke liye 3 second ka pakka time dena zaroori hai
+        time.sleep(3) 
+        
         element = page.locator("#solution-box")
         element.screenshot(path=output_path)
         browser.close()
         
     return output_path
 
-# 💡 3. Discord Function (Multiple Files & Spoiler Image)
+# 💡 3. Discord Function (Bina text options ke)
 def send_to_discord(image_path, json_data):
     url = f"https://discord.com/api/v10/channels/{DISCORD_CHANNEL_ID}/messages"
     headers = {
         "Authorization": f"Bot {DISCORD_BOT_TOKEN}"
     }
     
-    # NAYA JUGAD: Photo ke file name ko hi Question ID bana diya
     q_num = os.path.splitext(os.path.basename(image_path))[0]
     content = f"🎯 **Question ID: {q_num}**\n\n"
     
@@ -82,12 +126,10 @@ def send_to_discord(image_path, json_data):
     reason = json_data.get('reason', '')
     
     with open(image_path, 'rb') as f1:
-        # File 1: Original Question Image
         files = {
             'files[0]': (os.path.basename(image_path), f1, 'image/jpeg')
         }
         
-        # File 2: Playwright Solution Image (Spoiler)
         f2 = None
         if reason:
             solution_img_path = create_solution_image(reason)
@@ -99,7 +141,7 @@ def send_to_discord(image_path, json_data):
         
         if f2:
             f2.close()
-            os.remove("SPOILER_solution.png") # Safai (Cleanup)
+            os.remove("SPOILER_solution.png")
             
         if response.status_code == 200:
             msg_id = response.json()['id']
@@ -114,24 +156,23 @@ def send_to_discord(image_path, json_data):
             print(f"⚠️ Discord Error: {response.text}")
             return False
 
-# 💡 4. Gemini Processing Function
+# 💡 4. Gemini Processing Function (New Rules for Math rendering)
 def process_with_gemini(image_path, key_index):
     client = genai.Client(api_key=GEMINI_KEYS[key_index])
     
-    # Prompt chota kar diya kyoki Question No. ab file name se aayega
     prompt = """
     Role & Objective: Expert Mathematics content creator for RPSC 2nd Grade Mathematics exam.
-    Task: Extract the mathematics question details from the uploaded image.
+    Task: Extract the mathematics question details from the uploaded image and provide a solution.
 
-    General Formatting Rules ('Clean Mode'):
-    1. No Math Delimiters in Reason: Never use $ or $$ signs in the reason field.
-    2. Bold Variables: In the reason field, write mathematical variables in bold.
-    3. Single Line Reason: The reason must be a continuous single line (no \n).
+    NEW RENDERING RULES (CRITICAL):
+    1. MATH DELIMITERS ARE MANDATORY: You MUST enclose all mathematical equations, variables, symbols, roots, fractions, and derivatives within $$...$$ in the reason field. (Example: $$ \\sqrt{x} $$ or $$ x^2 $$).
+    2. DETAILED SOLUTION: The reason must be a detailed, step-by-step logical explanation. Use \n for line breaks to make it look like a proper textbook solution. Do not write the whole reason in a single line.
+    3. LANGUAGE: Use a mix of pure Hindi (Devanagari) and standard English math terms. 
 
     Output strictly in this JSON template without any markdown backticks:
     {
       "correct_id": "Randomly select A, B, C, or D",
-      "reason": "Short explanation in mixed Hindi-English without latex dollars"
+      "reason": "Detailed step-by-step mathematical solution with $$math$$ and \\n line breaks"
     }
     """
     
