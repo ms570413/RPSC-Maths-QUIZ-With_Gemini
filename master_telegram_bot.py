@@ -153,7 +153,7 @@ def process_with_gemini(image_path, key_index):
     try:
         sample_file = client.files.upload(file=image_path)
         response = client.models.generate_content(
-            model='gemini-2.0-flash',
+            model='gemini-1.5-flash',
             contents=[sample_file, prompt],
             config=types.GenerateContentConfig(
                 temperature=0.2, top_p=0.95, top_k=40, max_output_tokens=1024, response_mime_type="application/json",
@@ -204,7 +204,7 @@ def main():
             print(f"❌ JSON fail, skipped: {img_name}")
             
         key_index = (key_index + 1) % len(GEMINI_KEYS)
-        time.sleep(10) 
+        time.sleep(15) 
 
 if __name__ == "__main__":
     main()
