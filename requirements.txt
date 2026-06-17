@@ -2,3 +2,5 @@ google-genai
 pillow
 requests
 playwright
+google-generativeai
+requests
