@@ -28,7 +28,7 @@ jobs:
 
       - name: Run Master AI Bot
         env:
-          # 💡 Yahan sari 10 keys connect kar di hain
+          # 💡 Sari 10 Gemini keys
           GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
           GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
@@ -39,14 +39,19 @@ jobs:
           GEMINI_API_KEY_8: ${{ secrets.GEMINI_API_KEY_8 }}
           GEMINI_API_KEY_9: ${{ secrets.GEMINI_API_KEY_9 }}
           GEMINI_API_KEY_10: ${{ secrets.GEMINI_API_KEY_10 }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python master_telegram_bot.py
+          # 💡 Discord Keys
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_CHANNEL_ID: ${{ secrets.DISCORD_CHANNEL_ID }}
+        run: python master_discord_bot.py
 
       - name: Save Changes to GitHub
         run: |
           git config --global user.name "MasterBot"
           git config --global user.email "bot@rpsc.com"
           git add .
-          git commit -m "✅ Auto-moved 50 questions to Done folder" || echo "No changes to commit"
+          git commit -m "✅ Auto-moved 25 questions to Done folder (Discord)" || echo "No changes to commit"
+          
+          # 💡 NAYA JUGAD: Push karne se pehle remote changes ko Pull (Rebase) karega
+          git pull --rebase origin main
+          
           git push
