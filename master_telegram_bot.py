@@ -168,7 +168,8 @@ def process_with_gemini(image_path, key_index):
                 
                 raw_text = response.text.strip()
                 if raw_text.startswith("```json"): raw_text = raw_text[7:]
-                elif raw_text.startswith("```"): raw_text = raw_text[3:]
+                elif raw_text.startswith("
+```"): raw_text = raw_text[3:]
                 if raw_text.endswith("```"): raw_text = raw_text[:-3]
                 
                 print(f"✅ Success with model: {model_name}")
@@ -189,8 +190,3 @@ def process_with_gemini(image_path, key_index):
     except Exception as e:
         print(f"File upload error: {e}")
         return None
-http://googleusercontent.com/immersive_entry_chip/0
-http://googleusercontent.com/immersive_entry_chip/1
-http://googleusercontent.com/immersive_entry_chip/2
-
-बस इसे एक बार गिटहब में पेस्ट करके सेव कर दो! अब टेलीग्राम पर क्वेश्चन की फोटो, फिर क्विज पोल और आखिर में ब्लैंक पेज वाला सॉल्यूशन (वो भी आईडी बैज के साथ) एकदम मक्खन की तरह आएगा। 🚀
