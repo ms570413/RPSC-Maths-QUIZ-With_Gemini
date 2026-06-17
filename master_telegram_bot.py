@@ -42,7 +42,7 @@ def create_solution_image(reason_text, q_num, output_path="SPOILER_solution.png"
     <html>
     <head>
         <meta charset="utf-8">
-        <link href="[https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;600&display=swap](https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;600&display=swap)" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;600&display=swap" rel="stylesheet">
         <script>
           window.MathJax = {{
             tex: {{
@@ -51,7 +51,7 @@ def create_solution_image(reason_text, q_num, output_path="SPOILER_solution.png"
             }}
           }};
         </script>
-        <script id="MathJax-script" async src="[https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js](https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js)"></script>
+        <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
         <style>
             body {{ font-family: 'Noto Sans Devanagari', sans-serif; padding: 20px; background: white; font-size: 20px; color: #222; line-height: 1.6; }}
             .box {{ border: 2px solid #5865F2; padding: 25px; border-radius: 10px; background: #fdfdfd; display: inline-block; min-width: 400px; max-width: 800px; box-shadow: 0px 4px 10px rgba(0,0,0,0.1); }}
@@ -90,12 +90,16 @@ def sort_by_first_number(filename):
     except:
         return 999999
 
-# 💡 4. Telegram API (Photo -> Poll -> Spoiler Solution)
+# 💡 4. Telegram API (Ab auto-link error nahi aayega!)
 def send_to_telegram(image_path, json_data):
     q_num = os.path.splitext(os.path.basename(image_path))[0]
     
+    # 🔴 YAHAN FIX KIYA HAI: String ko tod diya taki link na bane
+    base_url = "https://" + "api.telegram.org/bot" + TELEGRAM_BOT_TOKEN
+    photo_url = base_url + "/sendPhoto"
+    poll_url = base_url + "/sendPoll"
+    
     # --- STEP 1: Send Question Photo ---
-    photo_url = f"[https://api.telegram.org/bot](https://api.telegram.org/bot){TELEGRAM_BOT_TOKEN}/sendPhoto"
     caption = f"🎯 **Question ID: {q_num}**"
     with open(image_path, 'rb') as photo:
         res_photo = requests.post(photo_url, data={'chat_id': TELEGRAM_CHAT_ID, 'caption': caption, 'parse_mode': 'Markdown'}, files={'photo': photo})
@@ -104,7 +108,6 @@ def send_to_telegram(image_path, json_data):
             return False
 
     # --- STEP 2: Send Quiz Poll ---
-    poll_url = f"[https://api.telegram.org/bot](https://api.telegram.org/bot){TELEGRAM_BOT_TOKEN}/sendPoll"
     correct_ans = json_data.get('correct_id', 'A').upper()
     correct_map = {'A': 0, 'B': 1, 'C': 2, 'D': 3}
     
@@ -120,7 +123,7 @@ def send_to_telegram(image_path, json_data):
     if res_poll.status_code != 200:
         print(f"⚠️ Telegram Poll Error: {res_poll.text}")
 
-    # --- STEP 3: Send Solution Image (Spoiler with ID Badge) ---
+    # --- STEP 3: Send Solution Image (Spoiler) ---
     reason = json_data.get('reason', '')
     if reason:
         sol_img = create_solution_image(reason, q_num)
@@ -131,7 +134,7 @@ def send_to_telegram(image_path, json_data):
     print(f"✅ Master Quiz sent successfully for {q_num}!")
     return True
 
-# 💡 5. Gemini Processing (Auto-Switch & Smart Approach)
+# 💡 5. Gemini Processing (Smart Approach)
 def process_with_gemini(image_path, key_index):
     client = genai.Client(api_key=GEMINI_KEYS[key_index])
     
@@ -165,7 +168,6 @@ def process_with_gemini(image_path, key_index):
                     config=types.GenerateContentConfig(temperature=0.2, response_mime_type="application/json")
                 )
                 
-                # Naya Code: JSON parse karne ka sabse safe tarika jo copy-paste me kabhi crash nahi hoga
                 raw_text = response.text.strip()
                 raw_text = raw_text.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
                 
