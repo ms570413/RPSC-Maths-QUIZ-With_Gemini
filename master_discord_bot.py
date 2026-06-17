@@ -4,12 +4,21 @@ import time
 import shutil
 import random
 import requests
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
-# 💡 1. API Keys aur Discord Setup
-GEMINI_KEYS = [
-    os.getenv("GEMINI_API_KEY_1")
+# 💡 1. API Keys aur Discord Setup (Smart strip filter ke sath)
+raw_keys = [
+    os.getenv("GEMINI_API_KEY_1"), os.getenv("GEMINI_API_KEY_2"),
+    os.getenv("GEMINI_API_KEY_3"), os.getenv("GEMINI_API_KEY_4"),
+    os.getenv("GEMINI_API_KEY_5"), os.getenv("GEMINI_API_KEY_6"),
+    os.getenv("GEMINI_API_KEY_7"), os.getenv("GEMINI_API_KEY_8"),
+    os.getenv("GEMINI_API_KEY_9"), os.getenv("GEMINI_API_KEY_10")
 ]
+
+# 🧹 Invisible space aur enter hatane ke liye
+GEMINI_KEYS = [k.strip() for k in raw_keys if k is not None and k.strip() != ""]
+
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 DISCORD_CHANNEL_ID = os.getenv("DISCORD_CHANNEL_ID")
 
@@ -19,7 +28,7 @@ QUESTIONS_PER_RUN = 25
 
 os.makedirs(DONE_FOLDER, exist_ok=True)
 
-# 💡 2. Discord par bhejne ka function (Reaction Polls ke sath)
+# 💡 2. Discord Function (Reaction Polls ke sath)
 def send_to_discord(image_path, json_data):
     url = f"https://discord.com/api/v10/channels/{DISCORD_CHANNEL_ID}/messages"
     headers = {
@@ -52,22 +61,10 @@ def send_to_discord(image_path, json_data):
             print(f"⚠️ Discord Error: {response.text}")
             return False
 
-# 💡 3. Gemini Processing Function
+# 💡 3. NAYA Gemini Processing Function (google.genai library)
 def process_with_gemini(image_path, key_index):
-    genai.configure(api_key=GEMINI_KEYS[key_index])
-    
-    generation_config = {
-        "temperature": 0.2,
-        "top_p": 0.95,
-        "top_k": 40,
-        "max_output_tokens": 1024,
-        "response_mime_type": "application/json",
-    }
-    
-    model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
-        generation_config=generation_config,
-    )
+    # Naya Client format
+    client = genai.Client(api_key=GEMINI_KEYS[key_index])
     
     prompt = """
     Role & Objective: Expert Mathematics content creator for RPSC 2nd Grade Mathematics exam.
@@ -106,8 +103,21 @@ def process_with_gemini(image_path, key_index):
     """
     
     try:
-        sample_file = genai.upload_file(image_path, mime_type="image/jpeg")
-        response = model.generate_content([sample_file, prompt])
+        # Naya file upload system
+        sample_file = client.files.upload(file=image_path)
+        
+        # Naya content generation system
+        response = client.models.generate_content(
+            model='gemini-1.5-flash',
+            contents=[sample_file, prompt],
+            config=types.GenerateContentConfig(
+                temperature=0.2,
+                top_p=0.95,
+                top_k=40,
+                max_output_tokens=1024,
+                response_mime_type="application/json",
+            )
+        )
         return json.loads(response.text)
     except Exception as e:
         print(f"Gemini Error on key {key_index + 1}: {e}")
@@ -130,6 +140,11 @@ def main():
 
     key_index = 0
     
+    # Check if we have valid keys
+    if not GEMINI_KEYS:
+        print("⚠️ Koi valid API key nahi mili! Secrets check karo.")
+        return
+    
     for img_name in images_to_process:
         img_path = os.path.join(SOURCE_FOLDER, img_name)
         print(f"⏳ Processing: {img_name}")
@@ -144,7 +159,7 @@ def main():
         
         # Round robin key rotation
         key_index = (key_index + 1) % len(GEMINI_KEYS)
-        time.sleep(5) # API rate limit se bachne ke liye thoda wait
+        time.sleep(5) # API rate limit se bachne ke liye wait
 
 if __name__ == "__main__":
     main()
