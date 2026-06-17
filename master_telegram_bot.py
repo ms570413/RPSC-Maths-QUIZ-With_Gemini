@@ -26,7 +26,14 @@ QUESTIONS_PER_RUN = 25
 
 os.makedirs(DONE_FOLDER, exist_ok=True)
 
-# 💡 2. Playwright se Blank Page par MathJax + Devanagari Render karna
+# 🚀 MUKESH BHAI KA AUTO-SWITCH IDEA (MODELS LIST)
+GEMINI_MODELS = [
+    'gemini-3.1-flash-lite',
+    'gemini-2.5-flash-lite',
+    'gemini-2.5-flash'
+]
+
+# 💡 2. Playwright se Blank Page par MathJax Render
 def create_solution_image(reason_text, output_path="SPOILER_solution.png"):
     reason_html = reason_text.replace('\n', '<br>')
     
@@ -75,32 +82,26 @@ def create_solution_image(reason_text, output_path="SPOILER_solution.png"):
         
     return output_path
 
-# 💡 3. File Sorting Helper Function
+# 💡 3. File Sorting
 def sort_by_first_number(filename):
     try:
         return int(filename.split('-')[0])
     except:
         return 999999
 
-# 💡 4. Telegram API Function (3-Step Magic)
+# 💡 4. Telegram API (Photo -> Poll -> Spoiler)
 def send_to_telegram(image_path, json_data):
     q_num = os.path.splitext(os.path.basename(image_path))[0]
-    
-    # --- Step 1: Send Question Photo ---
     photo_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
     caption = f"🎯 **Question ID: {q_num}**"
     
     with open(image_path, 'rb') as photo:
         res_photo = requests.post(photo_url, data={'chat_id': TELEGRAM_CHAT_ID, 'caption': caption, 'parse_mode': 'Markdown'}, files={'photo': photo})
-        if res_photo.status_code != 200:
-            print(f"⚠️ Telegram Photo Error: {res_photo.text}")
-            return False
+        if res_photo.status_code != 200: return False
 
-    # --- Step 2: Send Quiz Poll ---
     poll_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPoll"
     correct_ans = json_data.get('correct_id', 'A').upper()
     correct_map = {'A': 0, 'B': 1, 'C': 2, 'D': 3}
-    correct_idx = correct_map.get(correct_ans, 0)
     
     poll_data = {
         'chat_id': TELEGRAM_CHAT_ID,
@@ -108,103 +109,88 @@ def send_to_telegram(image_path, json_data):
         'options': json.dumps(["A", "B", "C", "D"]),
         'is_anonymous': False,
         'type': 'quiz',
-        'correct_option_id': correct_idx
+        'correct_option_id': correct_map.get(correct_ans, 0)
     }
-    res_poll = requests.post(poll_url, data=poll_data)
+    requests.post(poll_url, data=poll_data)
 
-    # --- Step 3: Send Solution Image (As Spoiler) ---
     reason = json_data.get('reason', '')
     if reason:
-        solution_img_path = create_solution_image(reason)
-        with open(solution_img_path, 'rb') as sol_photo:
-            requests.post(
-                photo_url, 
-                data={
-                    'chat_id': TELEGRAM_CHAT_ID, 
-                    'has_spoiler': True  # Yaha image blur ho jayegi!
-                }, 
-                files={'photo': sol_photo}
-            )
-        os.remove(solution_img_path)
+        sol_img = create_solution_image(reason)
+        with open(sol_img, 'rb') as sol_photo:
+            requests.post(photo_url, data={'chat_id': TELEGRAM_CHAT_ID, 'has_spoiler': True}, files={'photo': sol_photo})
+        os.remove(sol_img)
 
-    print(f"✅ Master Quiz sent successfully for {os.path.basename(image_path)}!")
     return True
 
-# 💡 5. Gemini Processing Function (Gemini 2.0 Flash)
+# 💡 5. Gemini Processing (AUTO-SWITCH LOGIC)
 def process_with_gemini(image_path, key_index):
     client = genai.Client(api_key=GEMINI_KEYS[key_index])
+    prompt = """Role & Objective: Expert Mathematics content creator for RPSC exam.
+    Task: Extract math question details and provide solution.
+    1. DOUBLE ESCAPE LATEX: Use \\\\sqrt, \\\\frac.
+    2. NO REAL LINE BREAKS: Use \\n for newlines.
+    3. MATH DELIMITERS: Enclose math in $$...$$. Example: $$\\\\sqrt{x^2+1}$$.
+    4. LANGUAGE: Pure Hindi mixed with standard English math terms.
+    Output JSON: {"correct_id": "A", "reason": "Explanation"}"""
     
-    prompt = """
-    Role & Objective: Expert Mathematics content creator for RPSC exam.
-    Task: Extract the mathematics question details from the image and provide a solution.
-
-    CRITICAL JSON FORMATTING & RENDERING RULES:
-    1. DOUBLE ESCAPE LATEX: Since output is JSON, you MUST double-escape all LaTeX backslashes. Write \\\\sqrt instead of \\sqrt, \\\\frac instead of \\frac.
-    2. NO REAL LINE BREAKS: DO NOT press the Enter key. Use the literal text \\n for newlines.
-    3. MATH DELIMITERS: Enclose all math expressions in $$...$$. Example: $$\\\\sqrt{x^2 + 1}$$.
-    4. LANGUAGE: Use Devanagari Hindi mixed with standard English math terms.
-
-    Output strictly in this JSON template without any markdown backticks:
-    {
-      "correct_id": "Randomly select A, B, C, or D",
-      "reason": "Detailed mathematical solution using double escaped \\\\sqrt and \\n"
-    }
-    """
     try:
         sample_file = client.files.upload(file=image_path)
-        response = client.models.generate_content(
-            model='gemini-2.0-flash',
-            contents=[sample_file, prompt],
-            config=types.GenerateContentConfig(
-                temperature=0.2, top_p=0.95, top_k=40, max_output_tokens=1024, response_mime_type="application/json",
-            )
-        )
         
-        raw_text = response.text.strip()
-        if raw_text.startswith("```json"): raw_text = raw_text[7:]
-        elif raw_text.startswith("```"): raw_text = raw_text[3:]
-        if raw_text.endswith("```"): raw_text = raw_text[:-3]
-            
-        return json.loads(raw_text.strip(), strict=False)
+        # 🔄 Yaha apka logic lagaya hai: Ek ek karke model try karega
+        for model_name in GEMINI_MODELS:
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=[sample_file, prompt],
+                    config=types.GenerateContentConfig(temperature=0.2, response_mime_type="application/json")
+                )
+                
+                raw_text = response.text.strip()
+                if raw_text.startswith("```json"): raw_text = raw_text[7:]
+                elif raw_text.startswith("```"): raw_text = raw_text[3:]
+                if raw_text.endswith("```"): raw_text = raw_text[:-3]
+                
+                print(f"✅ Success with model: {model_name}")
+                return json.loads(raw_text.strip(), strict=False)
+                
+            except Exception as e:
+                error_msg = str(e)
+                # Agar 429 limit ka error hai, toh agle model par jump karega
+                if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
+                    print(f"⚠️ Limit reached for {model_name}, switching to next model...")
+                    continue 
+                else:
+                    print(f"❌ Other Gemini Error on {model_name}: {e}")
+                    break # Agar koi aur error (jaise internet) hai, toh loop tod dega
+                    
+        print(f"❌ Saare models ki limit khtm ho gayi is Key ke liye!")
+        return None
         
     except Exception as e:
-        print(f"Gemini Error on key {key_index + 1}: {e}")
+        print(f"File upload error: {e}")
         return None
 
 # 💡 6. Main Bot Logic
 def main():
-    if not os.path.exists(SOURCE_FOLDER):
-        print(f"Folder {SOURCE_FOLDER} nahi mila!")
-        return
-
-    raw_images = [f for f in os.listdir(SOURCE_FOLDER) if f.endswith(('.png', '.jpg', '.jpeg'))]
-    images = sorted(raw_images, key=sort_by_first_number)
-    
-    if not images:
-        print("Bhai, Final_Mixed_Bank folder khali hai! Naye questions dalo.")
-        return
+    if not os.path.exists(SOURCE_FOLDER): return
+    images = sorted([f for f in os.listdir(SOURCE_FOLDER) if f.endswith(('.png', '.jpg', '.jpeg'))], key=sort_by_first_number)
+    if not images or not GEMINI_KEYS: return
 
     images_to_process = images[:QUESTIONS_PER_RUN]
-    print(f"🚀 Processing: Top {len(images_to_process)} questions for Telegram...")
-    
     key_index = 0
     
     for img_name in images_to_process:
         img_path = os.path.join(SOURCE_FOLDER, img_name)
-        print(f"⏳ Processing: {img_name}")
+        print(f"\n⏳ Processing: {img_name}")
         
         json_data = process_with_gemini(img_path, key_index)
         
-        if json_data:
-            success = send_to_telegram(img_path, json_data)
-            if success:
-                shutil.move(img_path, os.path.join(DONE_FOLDER, img_name))
-                print(f"📁 Moved to Done: {img_name}")
-        else:
-            print(f"❌ JSON fail, skipped: {img_name}")
+        if json_data and send_to_telegram(img_path, json_data):
+            shutil.move(img_path, os.path.join(DONE_FOLDER, img_name))
+            print(f"📁 Moved to Done: {img_name}")
             
         key_index = (key_index + 1) % len(GEMINI_KEYS)
-        time.sleep(15) 
+        time.sleep(10) # 10 second break (RPM limit cross na ho isliye)
 
 if __name__ == "__main__":
     main()
