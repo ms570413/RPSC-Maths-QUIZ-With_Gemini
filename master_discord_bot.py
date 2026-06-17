@@ -30,7 +30,6 @@ os.makedirs(DONE_FOLDER, exist_ok=True)
 
 # 💡 2. Playwright se Blank Page par MathJax + Devanagari Render karna
 def create_solution_image(reason_text, output_path="SPOILER_solution.png"):
-    # \n ko html ke <br> me badalna taki line break aaye
     reason_html = reason_text.replace('\n', '<br>')
     
     html_content = f"""
@@ -38,10 +37,7 @@ def create_solution_image(reason_text, output_path="SPOILER_solution.png"):
     <html>
     <head>
         <meta charset="utf-8">
-        <!-- Google Devanagari Font -->
         <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;600&display=swap" rel="stylesheet">
-        
-        <!-- MathJax for rendering Mathematics (Root, Square, etc.) -->
         <script>
           window.MathJax = {{
             tex: {{
@@ -51,37 +47,12 @@ def create_solution_image(reason_text, output_path="SPOILER_solution.png"):
           }};
         </script>
         <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-        
         <style>
-            body {{ 
-                font-family: 'Noto Sans Devanagari', sans-serif; 
-                padding: 20px; 
-                background: white; 
-                font-size: 20px; 
-                color: #222; 
-                line-height: 1.6; 
-            }}
-            .box {{ 
-                border: 2px solid #5865F2; 
-                padding: 25px; 
-                border-radius: 10px; 
-                background: #fdfdfd; 
-                display: inline-block; 
-                min-width: 400px; 
-                max-width: 800px; 
-                box-shadow: 0px 4px 10px rgba(0,0,0,0.1); 
-            }}
-            h3 {{ 
-                color: #5865F2; 
-                margin-top: 0; 
-                margin-bottom: 15px; 
-                font-family: sans-serif; 
-                font-size: 24px; 
-                border-bottom: 2px solid #eee; 
-                padding-bottom: 10px; 
-            }}
+            body {{ font-family: 'Noto Sans Devanagari', sans-serif; padding: 20px; background: white; font-size: 20px; color: #222; line-height: 1.6; }}
+            .box {{ border: 2px solid #5865F2; padding: 25px; border-radius: 10px; background: #fdfdfd; display: inline-block; min-width: 400px; max-width: 800px; box-shadow: 0px 4px 10px rgba(0,0,0,0.1); }}
+            h3 {{ color: #5865F2; margin-top: 0; margin-bottom: 15px; font-family: sans-serif; font-size: 24px; border-bottom: 2px solid #eee; padding-bottom: 10px; }}
             p {{ margin: 0; font-weight: 500; }}
-            mjx-container {{ font-size: 115% !important; }} /* Math font thoda bada karne ke liye */
+            mjx-container {{ font-size: 115% !important; }}
         </style>
     </head>
     <body>
@@ -92,7 +63,6 @@ def create_solution_image(reason_text, output_path="SPOILER_solution.png"):
     </body>
     </html>
     """
-    
     with open("temp_solution.html", "w", encoding="utf-8") as f:
         f.write(html_content)
         
@@ -100,36 +70,27 @@ def create_solution_image(reason_text, output_path="SPOILER_solution.png"):
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
         page.goto("file://" + os.path.abspath("temp_solution.html"))
-        
-        # MathJax ko render hone ke liye 3 second ka pakka time dena zaroori hai
         time.sleep(3) 
-        
         element = page.locator("#solution-box")
         element.screenshot(path=output_path)
         browser.close()
         
     return output_path
 
-# 💡 3. Discord Function (Bina text options ke)
+# 💡 3. Discord Function
 def send_to_discord(image_path, json_data):
     url = f"https://discord.com/api/v10/channels/{DISCORD_CHANNEL_ID}/messages"
-    headers = {
-        "Authorization": f"Bot {DISCORD_BOT_TOKEN}"
-    }
+    headers = {"Authorization": f"Bot {DISCORD_BOT_TOKEN}"}
     
     q_num = os.path.splitext(os.path.basename(image_path))[0]
     content = f"🎯 **Question ID: {q_num}**\n\n"
     
     correct_ans = json_data.get('correct_id', '')
     content += f"||✅ **Correct Answer: {correct_ans}** ||"
-    
     reason = json_data.get('reason', '')
     
     with open(image_path, 'rb') as f1:
-        files = {
-            'files[0]': (os.path.basename(image_path), f1, 'image/jpeg')
-        }
-        
+        files = {'files[0]': (os.path.basename(image_path), f1, 'image/jpeg')}
         f2 = None
         if reason:
             solution_img_path = create_solution_image(reason)
@@ -156,90 +117,42 @@ def send_to_discord(image_path, json_data):
             print(f"⚠️ Discord Error: {response.text}")
             return False
 
-# 💡 4. Gemini Processing Function (New Rules for Math rendering)
+# 💡 4. Gemini Processing Function (JSON Crash Fix)
 def process_with_gemini(image_path, key_index):
     client = genai.Client(api_key=GEMINI_KEYS[key_index])
     
     prompt = """
-    Role & Objective: Expert Mathematics content creator for RPSC 2nd Grade Mathematics exam.
-    Task: Extract the mathematics question details from the uploaded image and provide a solution.
+    Role & Objective: Expert Mathematics content creator for RPSC exam.
+    Task: Extract the mathematics question details from the image and provide a solution.
 
-    NEW RENDERING RULES (CRITICAL):
-    1. MATH DELIMITERS ARE MANDATORY: You MUST enclose all mathematical equations, variables, symbols, roots, fractions, and derivatives within $$...$$ in the reason field. (Example: $$ \\sqrt{x} $$ or $$ x^2 $$).
-    2. DETAILED SOLUTION: The reason must be a detailed, step-by-step logical explanation. Use \n for line breaks to make it look like a proper textbook solution. Do not write the whole reason in a single line.
-    3. LANGUAGE: Use a mix of pure Hindi (Devanagari) and standard English math terms. 
+    CRITICAL JSON FORMATTING & RENDERING RULES (MUST FOLLOW):
+    1. DOUBLE ESCAPE LATEX: Since output is JSON, you MUST double-escape all LaTeX backslashes. Write \\\\sqrt instead of \\sqrt, \\\\frac instead of \\frac, \\\\int instead of \\int, etc.
+    2. NO REAL LINE BREAKS: DO NOT press the Enter key to create new lines inside the reason text. Use the literal text \\n for newlines.
+    3. MATH DELIMITERS: Enclose all math expressions in $$...$$. Example: $$ \\\\sqrt{x^2 + 1} $$.
+    4. LANGUAGE: Use Devanagari Hindi mixed with standard English math terms.
 
     Output strictly in this JSON template without any markdown backticks:
     {
       "correct_id": "Randomly select A, B, C, or D",
-      "reason": "Detailed step-by-step mathematical solution with $$math$$ and \\n line breaks"
+      "reason": "Detailed mathematical solution using double escaped \\\\sqrt and \\n"
     }
     """
-    
     try:
         sample_file = client.files.upload(file=image_path)
-        
         response = client.models.generate_content(
             model='gemini-2.5-flash',
             contents=[sample_file, prompt],
             config=types.GenerateContentConfig(
-                temperature=0.2,
-                top_p=0.95,
-                top_k=40,
-                max_output_tokens=1024,
-                response_mime_type="application/json",
+                temperature=0.2, top_p=0.95, top_k=40, max_output_tokens=1024, response_mime_type="application/json",
             )
         )
         
         raw_text = response.text.strip()
-        if raw_text.startswith("```json"):
-            raw_text = raw_text[7:]
-        elif raw_text.startswith("```"):
-            raw_text = raw_text[3:]
-        if raw_text.endswith("```"):
-            raw_text = raw_text[:-3]
-            
-        return json.loads(raw_text.strip())
-        
-    except Exception as e:
-        print(f"Gemini Error on key {key_index + 1}: {e}")
-        return None
+        if raw_text.startswith("
+http://googleusercontent.com/immersive_entry_chip/0
+http://googleusercontent.com/immersive_entry_chip/1
+http://googleusercontent.com/immersive_entry_chip/2
 
-# 💡 5. Main Bot Logic
-def main():
-    if not os.path.exists(SOURCE_FOLDER):
-        print(f"Folder {SOURCE_FOLDER} nahi mila!")
-        return
+अब अगर जेमिनी ने किसी सवाल में कोई गलती की या 503 एरर आया, तो बॉट क्रैश नहीं होगा। वो बस उस सवाल को छोड़ देगा और जब तक गिनती के पूरे 25 सवाल Discord पर भेजकर `Done` फोल्डर में नहीं डाल देता, तब तक हार नहीं मानेगा! 
 
-    images = sorted([f for f in os.listdir(SOURCE_FOLDER) if f.endswith(('.png', '.jpg', '.jpeg'))])
-    
-    if not images:
-        print("Bhai, Final_Mixed_Bank folder khali hai! Naye questions dalo.")
-        return
-
-    images_to_process = images[:QUESTIONS_PER_RUN]
-    print(f"🚀 Processing {len(images_to_process)} questions for Discord...")
-
-    key_index = 0
-    
-    if not GEMINI_KEYS:
-        print("⚠️ Koi valid API key nahi mili! Secrets check karo.")
-        return
-    
-    for img_name in images_to_process:
-        img_path = os.path.join(SOURCE_FOLDER, img_name)
-        print(f"⏳ Processing: {img_name}")
-        
-        json_data = process_with_gemini(img_path, key_index)
-        
-        if json_data:
-            success = send_to_discord(img_path, json_data)
-            if success:
-                shutil.move(img_path, os.path.join(DONE_FOLDER, img_name))
-                print(f"📁 Moved to Done: {img_name}\n")
-        
-        key_index = (key_index + 1) % len(GEMINI_KEYS)
-        time.sleep(12) 
-
-if __name__ == "__main__":
-    main()
+इसे पुश (Push) करो और जादू देखो! 🚀
