@@ -153,7 +153,7 @@ def process_with_gemini(image_path, key_index):
     try:
         sample_file = client.files.upload(file=image_path)
         response = client.models.generate_content(
-            model='gemini-1.5-flash',
+            model='gemini-2.0-flash',
             contents=[sample_file, prompt],
             config=types.GenerateContentConfig(
                 temperature=0.2, top_p=0.95, top_k=40, max_output_tokens=1024, response_mime_type="application/json",
