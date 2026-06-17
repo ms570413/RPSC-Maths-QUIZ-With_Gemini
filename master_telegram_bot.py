@@ -2,13 +2,12 @@ import os
 import json
 import time
 import shutil
-import random
 import requests
 from google import genai
 from google.genai import types
 from playwright.sync_api import sync_playwright
 
-# 💡 1. API Keys aur Discord Setup
+# 💡 1. API Keys aur Telegram Setup
 raw_keys = [
     os.getenv("GEMINI_API_KEY_1"), os.getenv("GEMINI_API_KEY_2"),
     os.getenv("GEMINI_API_KEY_3"), os.getenv("GEMINI_API_KEY_4"),
@@ -16,11 +15,10 @@ raw_keys = [
     os.getenv("GEMINI_API_KEY_7"), os.getenv("GEMINI_API_KEY_8"),
     os.getenv("GEMINI_API_KEY_9"), os.getenv("GEMINI_API_KEY_10")
 ]
-
 GEMINI_KEYS = [k.strip() for k in raw_keys if k is not None and k.strip() != ""]
 
-DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
-DISCORD_CHANNEL_ID = os.getenv("DISCORD_CHANNEL_ID")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 SOURCE_FOLDER = "Final_Mixed_Bank"
 DONE_FOLDER = "Done_Questions"
@@ -77,48 +75,62 @@ def create_solution_image(reason_text, output_path="SPOILER_solution.png"):
         
     return output_path
 
-# 💡 3. Discord Function
-def send_to_discord(image_path, json_data):
-    url = f"https://discord.com/api/v10/channels/{DISCORD_CHANNEL_ID}/messages"
-    headers = {"Authorization": f"Bot {DISCORD_BOT_TOKEN}"}
-    
+# 💡 3. File Sorting Helper Function
+def sort_by_first_number(filename):
+    try:
+        return int(filename.split('-')[0])
+    except:
+        return 999999
+
+# 💡 4. Telegram API Function (3-Step Magic)
+def send_to_telegram(image_path, json_data):
     q_num = os.path.splitext(os.path.basename(image_path))[0]
-    content = f"🎯 **Question ID: {q_num}**\n\n"
     
-    correct_ans = json_data.get('correct_id', '')
-    content += f"||✅ **Correct Answer: {correct_ans}** ||"
-    reason = json_data.get('reason', '')
+    # --- Step 1: Send Question Photo ---
+    photo_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
+    caption = f"🎯 **Question ID: {q_num}**"
     
-    with open(image_path, 'rb') as f1:
-        files = {'files[0]': (os.path.basename(image_path), f1, 'image/jpeg')}
-        f2 = None
-        if reason:
-            solution_img_path = create_solution_image(reason)
-            f2 = open(solution_img_path, 'rb')
-            files['files[1]'] = ("SPOILER_solution.png", f2, 'image/png')
-            
-        payload = {'content': content}
-        response = requests.post(url, headers=headers, data=payload, files=files)
-        
-        if f2:
-            f2.close()
-            if os.path.exists("SPOILER_solution.png"):
-                os.remove("SPOILER_solution.png")
-            
-        if response.status_code == 200:
-            msg_id = response.json()['id']
-            reactions = ['🇦', '🇧', '🇨', '🇩']
-            for reaction in reactions:
-                react_url = f"{url}/{msg_id}/reactions/{reaction}/@me"
-                requests.put(react_url, headers=headers)
-                time.sleep(0.5)
-            print(f"✅ Discord poll sent successfully for {os.path.basename(image_path)}!")
-            return True
-        else:
-            print(f"⚠️ Discord Error: {response.text}")
+    with open(image_path, 'rb') as photo:
+        res_photo = requests.post(photo_url, data={'chat_id': TELEGRAM_CHAT_ID, 'caption': caption, 'parse_mode': 'Markdown'}, files={'photo': photo})
+        if res_photo.status_code != 200:
+            print(f"⚠️ Telegram Photo Error: {res_photo.text}")
             return False
 
-# 💡 4. Gemini Processing Function
+    # --- Step 2: Send Quiz Poll ---
+    poll_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPoll"
+    correct_ans = json_data.get('correct_id', 'A').upper()
+    correct_map = {'A': 0, 'B': 1, 'C': 2, 'D': 3}
+    correct_idx = correct_map.get(correct_ans, 0)
+    
+    poll_data = {
+        'chat_id': TELEGRAM_CHAT_ID,
+        'question': f"Select correct answer for {q_num}:",
+        'options': json.dumps(["A", "B", "C", "D"]),
+        'is_anonymous': False,
+        'type': 'quiz',
+        'correct_option_id': correct_idx
+    }
+    res_poll = requests.post(poll_url, data=poll_data)
+
+    # --- Step 3: Send Solution Image (As Spoiler) ---
+    reason = json_data.get('reason', '')
+    if reason:
+        solution_img_path = create_solution_image(reason)
+        with open(solution_img_path, 'rb') as sol_photo:
+            requests.post(
+                photo_url, 
+                data={
+                    'chat_id': TELEGRAM_CHAT_ID, 
+                    'has_spoiler': True  # Yaha image blur ho jayegi!
+                }, 
+                files={'photo': sol_photo}
+            )
+        os.remove(solution_img_path)
+
+    print(f"✅ Master Quiz sent successfully for {os.path.basename(image_path)}!")
+    return True
+
+# 💡 5. Gemini Processing Function (Gemini 2.0 Flash)
 def process_with_gemini(image_path, key_index):
     client = genai.Client(api_key=GEMINI_KEYS[key_index])
     
@@ -149,14 +161,10 @@ def process_with_gemini(image_path, key_index):
         )
         
         raw_text = response.text.strip()
-        
-        if raw_text.startswith("```json"):
-            raw_text = raw_text[7:]
-        elif raw_text.startswith("```"):
-            raw_text = raw_text[3:]
-            
-        if raw_text.endswith("```"):
-            raw_text = raw_text[:-3]
+        if raw_text.startswith("```json"): raw_text = raw_text[7:]
+        elif raw_text.startswith("
+```"): raw_text = raw_text[3:]
+        if raw_text.endswith("```"): raw_text = raw_text[:-3]
             
         return json.loads(raw_text.strip(), strict=False)
         
@@ -164,22 +172,12 @@ def process_with_gemini(image_path, key_index):
         print(f"Gemini Error on key {key_index + 1}: {e}")
         return None
 
-# 💡 5. File Sorting Helper Function (Naya JUGAD)
-def sort_by_first_number(filename):
-    try:
-        # File name ko '-' se todkar pehla hissa nikalega aur use asli number (integer) bana dega
-        return int(filename.split('-')[0])
-    except:
-        # Agar galti se koi ajeeb file aa jaye toh use list ke aakhir me daal dega
-        return 999999
-
-# 💡 6. Main Bot Logic (Target 25)
+# 💡 6. Main Bot Logic
 def main():
     if not os.path.exists(SOURCE_FOLDER):
         print(f"Folder {SOURCE_FOLDER} nahi mila!")
         return
 
-    # Yaha par naya file sorting logic laga diya hai
     raw_images = [f for f in os.listdir(SOURCE_FOLDER) if f.endswith(('.png', '.jpg', '.jpeg'))]
     images = sorted(raw_images, key=sort_by_first_number)
     
@@ -187,38 +185,27 @@ def main():
         print("Bhai, Final_Mixed_Bank folder khali hai! Naye questions dalo.")
         return
 
-    if not GEMINI_KEYS:
-        print("⚠️ Koi valid API key nahi mili! Secrets check karo.")
-        return
-
-    print(f"🚀 Target: Discord par {QUESTIONS_PER_RUN} successful questions bhejna...")
+    images_to_process = images[:QUESTIONS_PER_RUN]
+    print(f"🚀 Processing: Top {len(images_to_process)} questions for Telegram...")
     
-    success_count = 0
     key_index = 0
     
-    for img_name in images:
-        if success_count >= QUESTIONS_PER_RUN:
-            print(f"🎉 Target complete! {QUESTIONS_PER_RUN} questions processed.")
-            break
-            
+    for img_name in images_to_process:
         img_path = os.path.join(SOURCE_FOLDER, img_name)
         print(f"⏳ Processing: {img_name}")
         
         json_data = process_with_gemini(img_path, key_index)
         
         if json_data:
-            success = send_to_discord(img_path, json_data)
+            success = send_to_telegram(img_path, json_data)
             if success:
                 shutil.move(img_path, os.path.join(DONE_FOLDER, img_name))
                 print(f"📁 Moved to Done: {img_name}")
-                success_count += 1
-            else:
-                print(f"❌ Discord error, question skipped: {img_name}")
         else:
-            print(f"❌ JSON generation fail, skipping for now: {img_name}")
+            print(f"❌ JSON fail, skipped: {img_name}")
             
         key_index = (key_index + 1) % len(GEMINI_KEYS)
-        time.sleep(12) 
+        time.sleep(10) 
 
 if __name__ == "__main__":
     main()
