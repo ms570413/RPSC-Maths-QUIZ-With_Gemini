@@ -102,7 +102,8 @@ def send_to_discord(image_path, json_data):
         
         if f2:
             f2.close()
-            os.remove("SPOILER_solution.png")
+            if os.path.exists("SPOILER_solution.png"):
+                os.remove("SPOILER_solution.png")
             
         if response.status_code == 200:
             msg_id = response.json()['id']
@@ -117,7 +118,7 @@ def send_to_discord(image_path, json_data):
             print(f"⚠️ Discord Error: {response.text}")
             return False
 
-# 💡 4. Gemini Processing Function (JSON Crash Fix)
+# 💡 4. Gemini Processing Function
 def process_with_gemini(image_path, key_index):
     client = genai.Client(api_key=GEMINI_KEYS[key_index])
     
@@ -125,10 +126,10 @@ def process_with_gemini(image_path, key_index):
     Role & Objective: Expert Mathematics content creator for RPSC exam.
     Task: Extract the mathematics question details from the image and provide a solution.
 
-    CRITICAL JSON FORMATTING & RENDERING RULES (MUST FOLLOW):
-    1. DOUBLE ESCAPE LATEX: Since output is JSON, you MUST double-escape all LaTeX backslashes. Write \\\\sqrt instead of \\sqrt, \\\\frac instead of \\frac, \\\\int instead of \\int, etc.
-    2. NO REAL LINE BREAKS: DO NOT press the Enter key to create new lines inside the reason text. Use the literal text \\n for newlines.
-    3. MATH DELIMITERS: Enclose all math expressions in $$...$$. Example: $$ \\\\sqrt{x^2 + 1} $$.
+    CRITICAL JSON FORMATTING & RENDERING RULES:
+    1. DOUBLE ESCAPE LATEX: Since output is JSON, you MUST double-escape all LaTeX backslashes. Write \\\\sqrt instead of \\sqrt, \\\\frac instead of \\frac.
+    2. NO REAL LINE BREAKS: DO NOT press the Enter key. Use the literal text \\n for newlines.
+    3. MATH DELIMITERS: Enclose all math expressions in $$...$$. Example: $$\\\\sqrt{x^2 + 1}$$.
     4. LANGUAGE: Use Devanagari Hindi mixed with standard English math terms.
 
     Output strictly in this JSON template without any markdown backticks:
@@ -148,11 +149,65 @@ def process_with_gemini(image_path, key_index):
         )
         
         raw_text = response.text.strip()
-        if raw_text.startswith("
-http://googleusercontent.com/immersive_entry_chip/0
-http://googleusercontent.com/immersive_entry_chip/1
-http://googleusercontent.com/immersive_entry_chip/2
+        
+        # Safe String Parsing
+        if raw_text.startswith("```json"):
+            raw_text = raw_text[7:]
+        elif raw_text.startswith("```"):
+            raw_text = raw_text[3:]
+            
+        if raw_text.endswith("```"):
+            raw_text = raw_text[:-3]
+            
+        return json.loads(raw_text.strip(), strict=False)
+        
+    except Exception as e:
+        print(f"Gemini Error on key {key_index + 1}: {e}")
+        return None
 
-अब अगर जेमिनी ने किसी सवाल में कोई गलती की या 503 एरर आया, तो बॉट क्रैश नहीं होगा। वो बस उस सवाल को छोड़ देगा और जब तक गिनती के पूरे 25 सवाल Discord पर भेजकर `Done` फोल्डर में नहीं डाल देता, तब तक हार नहीं मानेगा! 
+# 💡 5. Main Bot Logic (Target 25)
+def main():
+    if not os.path.exists(SOURCE_FOLDER):
+        print(f"Folder {SOURCE_FOLDER} nahi mila!")
+        return
 
-इसे पुश (Push) करो और जादू देखो! 🚀
+    images = sorted([f for f in os.listdir(SOURCE_FOLDER) if f.endswith(('.png', '.jpg', '.jpeg'))])
+    if not images:
+        print("Bhai, Final_Mixed_Bank folder khali hai! Naye questions dalo.")
+        return
+
+    if not GEMINI_KEYS:
+        print("⚠️ Koi valid API key nahi mili! Secrets check karo.")
+        return
+
+    print(f"🚀 Target: Discord par {QUESTIONS_PER_RUN} successful questions bhejna...")
+    
+    success_count = 0
+    key_index = 0
+    
+    for img_name in images:
+        if success_count >= QUESTIONS_PER_RUN:
+            print(f"🎉 Target complete! {QUESTIONS_PER_RUN} questions processed.")
+            break
+            
+        img_path = os.path.join(SOURCE_FOLDER, img_name)
+        print(f"⏳ Processing: {img_name}")
+        
+        json_data = process_with_gemini(img_path, key_index)
+        
+        if json_data:
+            success = send_to_discord(img_path, json_data)
+            if success:
+                shutil.move(img_path, os.path.join(DONE_FOLDER, img_name))
+                print(f"📁 Moved to Done: {img_name}")
+                success_count += 1
+            else:
+                print(f"❌ Discord error, question skipped: {img_name}")
+        else:
+            print(f"❌ JSON generation fail, skipping for now: {img_name}")
+            
+        key_index = (key_index + 1) % len(GEMINI_KEYS)
+        time.sleep(12) 
+
+if __name__ == "__main__":
+    main()
