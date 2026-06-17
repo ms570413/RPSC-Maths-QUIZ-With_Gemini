@@ -135,7 +135,6 @@ def send_to_telegram(image_path, json_data):
 def process_with_gemini(image_path, key_index):
     client = genai.Client(api_key=GEMINI_KEYS[key_index])
     
-    # 🚀 NAYA MASTER PROMPT (Smart Approach + Option Elimination)
     prompt = """Role & Objective: Expert Mathematics content creator for RPSC competitive exam.
     Task: Extract math question details and provide a high-quality, time-saving solution.
 
@@ -166,8 +165,50 @@ def process_with_gemini(image_path, key_index):
                     config=types.GenerateContentConfig(temperature=0.2, response_mime_type="application/json")
                 )
                 
+                # Naya Code: JSON parse karne ka sabse safe tarika jo copy-paste me kabhi crash nahi hoga
                 raw_text = response.text.strip()
-                if raw_text.startswith("
-http://googleusercontent.com/immersive_entry_chip/0
-http://googleusercontent.com/immersive_entry_chip/1
-http://googleusercontent.com/immersive_entry_chip/2
+                raw_text = raw_text.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+                
+                print(f"✅ Success with model: {model_name}")
+                return json.loads(raw_text, strict=False)
+                
+            except Exception as e:
+                error_msg = str(e)
+                if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
+                    print(f"⚠️ Limit reached for {model_name}, switching to next...")
+                    continue 
+                else:
+                    print(f"❌ Other Error on {model_name}: {e}")
+                    break 
+                    
+        print(f"❌ All models limit exhausted for this key!")
+        return None
+        
+    except Exception as e:
+        print(f"File upload error: {e}")
+        return None
+
+# 💡 6. Main Bot Logic
+def main():
+    if not os.path.exists(SOURCE_FOLDER): return
+    images = sorted([f for f in os.listdir(SOURCE_FOLDER) if f.endswith(('.png', '.jpg', '.jpeg'))], key=sort_by_first_number)
+    if not images or not GEMINI_KEYS: return
+
+    images_to_process = images[:QUESTIONS_PER_RUN]
+    key_index = 0
+    
+    for img_name in images_to_process:
+        img_path = os.path.join(SOURCE_FOLDER, img_name)
+        print(f"\n⏳ Processing: {img_name}")
+        
+        json_data = process_with_gemini(img_path, key_index)
+        
+        if json_data and send_to_telegram(img_path, json_data):
+            shutil.move(img_path, os.path.join(DONE_FOLDER, img_name))
+            print(f"📁 Moved to Done: {img_name}")
+            
+        key_index = (key_index + 1) % len(GEMINI_KEYS)
+        time.sleep(10) # 10 second safety break
+
+if __name__ == "__main__":
+    main()
