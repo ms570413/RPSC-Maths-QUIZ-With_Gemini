@@ -105,10 +105,17 @@ def main():
         
         send_photo_to_telegram(question_path, caption=f"🎯 Question ID: {question_id}")
         
-        prompt = """Expert RPSC teacher. Solve MCQ. 
-        RULE: No long steps. Focus on 'smart_approach' (Short trick/Option elimination). 
-        Format: LaTeX ($...$) for math. Response in XML: <correct_option>A</correct_option><smart_approach>...</smart_approach>"""
-        
+        prompt = """तुम एक expert RPSC 2nd Grade Mathematics teacher हो।
+        Task: इस फोटो में दिए गए maths के MCQ को solve करो।
+
+        RULES:
+        1. Language: अपना पूरा solution 'smart_approach' के अंदर सिर्फ और सिर्फ Pure Hindi (Devanagari script) में देना। (Math terms English में रख सकते हो)।
+        2. Approach: कोई लम्बा step-by-step हल नहीं देना है। सिर्फ short trick, direct formula या option elimination का तरीका बताओ जिससे एग्जाम में 5-10 सेकंड में उत्तर निकाला जा सके।
+        3. Formatting: Maths की हर एक equation, fraction, और variables (जैसे x, y) को हमेशा LaTeX यानी $$...$$ या $...$ के अंदर ही लिखना।
+
+        STRICT INSTRUCTION: अपना जवाब strictly इस XML format में दो:
+        <correct_option>C</correct_option>
+        <smart_approach>यहाँ आपकी हिंदी में शॉर्ट ट्रिक...</smart_approach>"""
         response = None
         for model in GEMINI_MODELS:
             try:
